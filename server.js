@@ -27,34 +27,49 @@ const app = express()
 const port = process.env.PORT || 5000
 
 const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
     
-    // ALL VERCEL URLs
-    "https://tripeasy-client-smoky.vercel.app",
-    "https://tripeasy-client-smoky.vercel.app/*",
-    "https://*.vercel.app",
-    "https://*.vercel.app/*",
+    const allowedOrigins = [
+      // Local development
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:3000",
+      
+      // Your domains
+      "https://tripeasy.in",
+      "https://www.tripeasy.in",
+      
+      // Vercel URLs
+      "https://tripeasy-client-smoky.vercel.app",
+      
+      // For testing
+      /\.tripeasy\.in$/,  // ALL tripeasy.in subdomains
+      /\.vercel\.app$/,   // ALL vercel.app subdomains
+    ];
     
-    // YOUR DOMAIN
-    "https://tripeasy.in",         // ADD THIS
-    "https://www.tripeasy.in",     // ADD THIS
-    "https://tripeasy.in/*",       // ADD THIS
-    "https://www.tripeasy.in/*",   // ADD THIS
-    
-    // Environment variables
-    process.env.FRONTEND_URL,
-    process.env.CLIENT_URL,
-  ].filter(Boolean),
+    if (allowedOrigins.some(allowed => {
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      } else {
+        return allowed === origin;
+      }
+    })) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-api-version", "x-request-id"],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
+  maxAge: 600, // 10 minutes
 };
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // IMPORTANT: For preflight requests
 
 app.use(cors(corsOptions))
 app.use(express.json({ limit: "50mb" }))
