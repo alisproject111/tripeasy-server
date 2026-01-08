@@ -34,15 +34,27 @@ const corsOptions = {
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
-    process.env.FRONTEND_URL,
-    process.env.CLIENT_URL,
+    
+    // ALL VERCEL URLs
+    "https://tripeasy-client-smoky.vercel.app",
+    "https://tripeasy-client-smoky.vercel.app/*",
     "https://*.vercel.app",
     "https://*.vercel.app/*",
-  ].filter(Boolean), // Remove undefined values
+    
+    // YOUR DOMAIN
+    "https://tripeasy.in",         // ADD THIS
+    "https://www.tripeasy.in",     // ADD THIS
+    "https://tripeasy.in/*",       // ADD THIS
+    "https://www.tripeasy.in/*",   // ADD THIS
+    
+    // Environment variables
+    process.env.FRONTEND_URL,
+    process.env.CLIENT_URL,
+  ].filter(Boolean),
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-api-version", "x-request-id"],
-}
+};
 
 app.use(cors(corsOptions))
 app.use(express.json({ limit: "50mb" }))
