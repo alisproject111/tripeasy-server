@@ -36,6 +36,8 @@ const corsOptions = {
     "http://127.0.0.1:5174",
     process.env.FRONTEND_URL,
     process.env.CLIENT_URL,
+    "https://*.vercel.app",
+    "https://*.vercel.app/*",
   ].filter(Boolean), // Remove undefined values
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -46,29 +48,13 @@ app.use(cors(corsOptions))
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 
-// Path to the JSON data file
-const packagesDataPath = path.join(__dirname, "../frontend/src/data/packagesData.json")
-
-// Helper function to read package data from JSON file
+// Helper functions for package data
 const readPackagesData = async () => {
-  try {
-    const data = await fs.promises.readFile(packagesDataPath, "utf8")
-    return JSON.parse(data)
-  } catch (error) {
-    console.error("Error reading packagesData.json:", error)
-    // If file doesn't exist or is empty/invalid JSON, return default structure
-    return { packages: [], destinations: [], categories: [] }
-  }
-}
+  return { packages: [], destinations: [], categories: [] }; // Return empty data for Vercel
+};
 
-// Helper function to write package data to JSON file
 const writePackagesData = async (data) => {
-  try {
-    await fs.promises.writeFile(packagesDataPath, JSON.stringify(data, null, 2), "utf8")
-  } catch (error) {
-    console.error("Error writing to packagesData.json:", error)
-    throw new Error("Failed to save package data")
-  }
+  return; // Do nothing for Vercel
 }
 
 // Function to get current time in IST
@@ -79,43 +65,52 @@ function getCurrentTimeInIST() {
   return ist.toISOString().slice(0, 19).replace("T", " ") // Format as YYYY-MM-DD HH:MM:SS
 }
 
-// Create uploads directory if it doesn't exist
+// Create uploads directory if it doesn't exist (only for local)
 const uploadsDir = path.join(__dirname, "uploads")
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true })
-}
 
-// Create subdirectories for different file types
-const imageUploadsDir = path.join(uploadsDir, "images")
-const pdfUploadsDir = path.join(uploadsDir, "pdfs")
-const tempUploadsDir = path.join(uploadsDir, "temp")
+// VERCEL COMPATIBLE: Create directory only if not in serverless environment
+if (process.env.VERCEL !== "1") {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true })
+  }
+  
+  // Create subdirectories for different file types
+  const imageUploadsDir = path.join(uploadsDir, "images")
+  const pdfUploadsDir = path.join(uploadsDir, "pdfs")
+  const tempUploadsDir = path.join(uploadsDir, "temp")
 
-if (!fs.existsSync(imageUploadsDir)) {
-  fs.mkdirSync(imageUploadsDir, { recursive: true })
+  if (!fs.existsSync(imageUploadsDir)) {
+    fs.mkdirSync(imageUploadsDir, { recursive: true })
+  }
+  if (!fs.existsSync(pdfUploadsDir)) {
+    fs.mkdirSync(pdfUploadsDir, { recursive: true })
+  }
+  if (!fs.existsSync(tempUploadsDir)) {
+    fs.mkdirSync(tempUploadsDir, { recursive: true })
+  }
+  
+  // Serve static files from uploads directory
+  app.use("/uploads", express.static(uploadsDir))
 }
-if (!fs.existsSync(pdfUploadsDir)) {
-  fs.mkdirSync(pdfUploadsDir, { recursive: true })
-}
-if (!fs.existsSync(tempUploadsDir)) {
-  fs.mkdirSync(tempUploadsDir, { recursive: true })
-}
-
-// Serve static files from uploads directory
-app.use("/uploads", express.static(uploadsDir))
 
 // Configure multer for file uploads with enhanced organization
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    let uploadPath = uploadsDir
+    // For Vercel, use temp directory or skip
+    if (process.env.VERCEL === "1") {
+      cb(null, "/tmp")
+    } else {
+      let uploadPath = uploadsDir
 
-    // Determine upload path based on file type and field name
-    if (file.mimetype.startsWith("image/")) {
-      uploadPath = imageUploadsDir
-    } else if (file.mimetype === "application/pdf") {
-      uploadPath = pdfUploadsDir
+      // Determine upload path based on file type and field name
+      if (file.mimetype.startsWith("image/")) {
+        uploadPath = path.join(uploadsDir, "images")
+      } else if (file.mimetype === "application/pdf") {
+        uploadPath = path.join(uploadsDir, "pdfs")
+      }
+
+      cb(null, uploadPath)
     }
-
-    cb(null, uploadPath)
   },
   filename: (req, file, cb) => {
     // Generate unique filename with timestamp and field name
@@ -228,7 +223,11 @@ app.post(
         if (files && files.length > 0) {
           const file = files[0] // Take the first file for each field
           const isImage = file.mimetype.startsWith("image/")
-          const fileUrl = `/uploads/${isImage ? "images" : "pdfs"}/${file.filename}`
+          
+          // For Vercel, return file info without URL
+          const fileUrl = process.env.VERCEL === "1" 
+            ? `/tmp/${file.filename}` 
+            : `/uploads/${isImage ? "images" : "pdfs"}/${file.filename}`
 
           uploadedFiles[fieldName] = fileUrl
           fileDetails[fieldName] = {
@@ -268,7 +267,9 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
       })
     }
 
-    const fileUrl = `/uploads/${req.file.mimetype.startsWith("image/") ? "images" : "pdfs"}/${req.file.filename}`
+    const fileUrl = process.env.VERCEL === "1"
+      ? `/tmp/${req.file.filename}`
+      : `/uploads/${req.file.mimetype.startsWith("image/") ? "images" : "pdfs"}/${req.file.filename}`
 
     res.json({
       success: true,
@@ -302,7 +303,10 @@ app.post("/api/upload-multiple", upload.array("files", 10), (req, res) => {
     }
 
     const uploadedFiles = req.files.map((file) => {
-      const fileUrl = `/uploads/${file.mimetype.startsWith("image/") ? "images" : "pdfs"}/${file.filename}`
+      const fileUrl = process.env.VERCEL === "1"
+        ? `/tmp/${file.filename}`
+        : `/uploads/${file.mimetype.startsWith("image/") ? "images" : "pdfs"}/${file.filename}`
+      
       return {
         filename: file.filename,
         originalName: file.originalname,
@@ -330,16 +334,25 @@ app.post("/api/upload-multiple", upload.array("files", 10), (req, res) => {
 // Get list of uploaded files
 app.get("/api/files", (req, res) => {
   try {
+    // For Vercel, return empty list as file storage is temporary
+    if (process.env.VERCEL === "1") {
+      return res.json({
+        success: true,
+        files: [],
+        message: "File listing not available on Vercel"
+      })
+    }
+
     const { type } = req.query // 'images' or 'pdfs'
 
     let targetDir = uploadsDir
     let urlPrefix = "/uploads"
 
     if (type === "images") {
-      targetDir = imageUploadsDir
+      targetDir = path.join(uploadsDir, "images")
       urlPrefix = "/uploads/images"
     } else if (type === "pdfs") {
-      targetDir = pdfUploadsDir
+      targetDir = path.join(uploadsDir, "pdfs")
       urlPrefix = "/uploads/pdfs"
     }
 
@@ -379,15 +392,23 @@ app.get("/api/files", (req, res) => {
 // Delete uploaded file
 app.delete("/api/files/:filename", (req, res) => {
   try {
+    // For Vercel, file deletion not supported
+    if (process.env.VERCEL === "1") {
+      return res.json({
+        success: true,
+        message: "File deletion not supported on Vercel"
+      })
+    }
+
     const { filename } = req.params
     const { type } = req.query // 'images' or 'pdfs'
 
     let targetDir = uploadsDir
 
     if (type === "images") {
-      targetDir = imageUploadsDir
+      targetDir = path.join(uploadsDir, "images")
     } else if (type === "pdfs") {
-      targetDir = pdfUploadsDir
+      targetDir = path.join(uploadsDir, "pdfs")
     }
 
     const filePath = path.join(targetDir, filename)
@@ -503,7 +524,7 @@ const generateReceiptHTML = (orderData, bookingDetails, packageDetails) => {
           box-sizing: border-box;
           margin: 0;
           padding: 0;
-          font-style: normal; /* Ensure no italic fonts */
+          font-style: normal;
         }
         
         body {
@@ -513,7 +534,7 @@ const generateReceiptHTML = (orderData, bookingDetails, packageDetails) => {
           margin: 0;
           padding: 0;
           background-color: #fff;
-          font-style: normal; /* Ensure no italic fonts */
+          font-style: normal;
         }
         
         .receipt {
@@ -874,123 +895,11 @@ const generateReceiptHTML = (orderData, bookingDetails, packageDetails) => {
   `
 }
 
-// FIXED: Improved PDF generation function with better Chrome path detection
+// FIXED: Improved PDF generation function - Disabled for Vercel
 async function generatePDF(html, outputPath) {
-  let browser = null
-  try {
-    // Save HTML file for debugging if needed
-    const htmlPath = outputPath.replace(".pdf", ".html")
-    fs.writeFileSync(htmlPath, html)
-    console.log(`HTML saved to: ${htmlPath}`)
-
-    // Find Chrome executable path dynamically
-    const getChromePath = () => {
-      // Try environment variable first
-      if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
-        return process.env.CHROME_PATH
-      }
-
-      // Common Chrome paths for different platforms
-      const possiblePaths = {
-        win32: [
-          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-          process.env.LOCALAPPDATA + "\\Google\\Chrome\\Application\\chrome.exe",
-        ],
-        darwin: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
-        linux: [
-          "/usr/bin/google-chrome",
-          "/usr/bin/google-chrome-stable",
-          "/usr/bin/chromium-browser",
-          "/usr/bin/chromium",
-        ],
-      }
-
-      const paths = possiblePaths[process.platform] || []
-      for (const path of paths) {
-        if (fs.existsSync(path)) {
-          console.log(`Found Chrome at: ${path}`)
-          return path
-        }
-      }
-
-      // If no Chrome found, try using the system PATH
-      return process.platform === "win32" ? "chrome" : "google-chrome"
-    }
-
-    const executablePath = getChromePath()
-    console.log(`Using Chrome executable: ${executablePath}`)
-
-    const launchOptions = {
-      executablePath: executablePath,
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    }
-
-    // If we're using a fallback (just 'chrome' or 'google-chrome'), let Puppeteer find it
-    if (executablePath === "chrome" || executablePath === "google-chrome") {
-      delete launchOptions.executablePath
-    }
-
-    browser = await puppeteer.launch(launchOptions)
-
-    const page = await browser.newPage()
-
-    // Set content and wait for network to be idle
-    await page.setContent(html, { waitUntil: "networkidle0" })
-
-    // Set PDF options
-    const pdfOptions = {
-      path: outputPath,
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "10mm",
-        right: "10mm",
-        bottom: "10mm",
-        left: "10mm",
-      },
-    }
-
-    // Generate PDF
-    await page.pdf(pdfOptions)
-    console.log(`PDF generated successfully at: ${outputPath}`)
-
-    return true
-  } catch (error) {
-    console.error("Error generating PDF:", error)
-
-    // Fallback: Create a simple text file if PDF generation fails
-    try {
-      const fallbackContent = `
-        TripEasy Booking Receipt
-        ========================
-        
-        Order ID: ${html.match(/Receipt #([^<]+)</)?.[1] || "Unknown"}
-        Date: ${new Date().toLocaleDateString()}
-        
-        Customer Information:
-        - Name: ${html.match(/<span class="detail-value">([^<]+)<\/span>/g)?.[0]?.match(/">([^<]+)</)?.[1] || "Unknown"}
-        - Email: ${html.match(/<span class="detail-value">([^<]+)<\/span>/g)?.[1]?.match(/">([^<]+)</)?.[1] || "Unknown"}
-        - Phone: ${html.match(/<span class="detail-value">([^<]+)<\/span>/g)?.[2]?.match(/">([^<]+)</)?.[1] || "Unknown"}
-        
-        Thank you for your booking!
-        
-        This is a simplified receipt. Please check your email for the full receipt.
-      `
-
-      fs.writeFileSync(outputPath.replace(".pdf", "_fallback.txt"), fallbackContent)
-      console.log(`Created fallback text file at: ${outputPath.replace(".pdf", "_fallback.txt")}`)
-    } catch (fallbackError) {
-      console.error("Could not create fallback file:", fallbackError)
-    }
-
-    throw error
-  } finally {
-    if (browser) {
-      await browser.close()
-    }
-  }
+  // TEMPORARY: For Vercel deployment, skip PDF generation
+  console.log("PDF generation disabled for Vercel deployment");
+  throw new Error("PDF generation not available on Vercel. Use localhost for PDF features.");
 }
 
 // FIXED: Improved sendReceiptEmail function with better error handling
@@ -1010,35 +919,31 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
 
     const htmlContent = generateReceiptHTML(orderData, bookingDetails, packageDetails)
 
-    // Generate PDF
-    const pdfFilePath = path.join(
-      tempUploadsDir,
-      `receipt_${orderData.order_id}_${to.replace(/[^a-zA-Z0-9]/g, "")}.pdf`,
-    )
-
-    let pdfGenerated = false
     const attachments = []
 
-    try {
-      // Generate PDF using puppeteer
-      await generatePDF(htmlContent, pdfFilePath)
-      pdfGenerated = true
+    // Only try to generate PDF if not on Vercel
+    if (process.env.VERCEL !== "1") {
+      try {
+        const pdfFilePath = path.join(
+          __dirname, "uploads", "temp",
+          `receipt_${orderData.order_id}_${to.replace(/[^a-zA-Z0-9]/g, "")}.pdf`,
+        )
 
-      console.log("PDF generated successfully at:", pdfFilePath)
-
-      // Verify the file exists before trying to attach it
-      if (fs.existsSync(pdfFilePath)) {
-        attachments.push({
-          filename: `TripEasy_Receipt_${orderData.order_id}.pdf`,
-          path: pdfFilePath,
-          contentType: "application/pdf",
-        })
-      } else {
-        console.warn("PDF file not found, sending email without attachment")
+        // Generate PDF using puppeteer
+        await generatePDF(htmlContent, pdfFilePath)
+        
+        // Verify the file exists before trying to attach it
+        if (fs.existsSync(pdfFilePath)) {
+          attachments.push({
+            filename: `TripEasy_Receipt_${orderData.order_id}.pdf`,
+            path: pdfFilePath,
+            contentType: "application/pdf",
+          })
+        }
+      } catch (pdfError) {
+        console.error("PDF generation failed, sending email without attachment:", pdfError.message)
+        // Continue without PDF attachment
       }
-    } catch (pdfError) {
-      console.error("PDF generation failed, sending email without attachment:", pdfError)
-      // Continue without PDF attachment
     }
 
     // Send email with or without PDF attachment
@@ -1069,7 +974,7 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
           </div>
           
           <p><strong>Important:</strong> Your original booking package tickets will be provided within a few hours.</p>
-          ${pdfGenerated ? "<p>Please find your booking receipt attached to this email.</p>" : "<p>Your booking receipt will be available for download from your account.</p>"}
+          ${attachments.length > 0 ? "<p>Please find your booking receipt attached to this email.</p>" : "<p>Your booking receipt will be available for download from your account.</p>"}
           
           <p>If you have any questions or need assistance, please don't hesitate to contact us.</p>
           
@@ -1083,31 +988,8 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
       attachments: attachments,
     }
 
-    try {
-      const info = await transporter.sendMail(mailOptions)
-      console.log("Email sent successfully:", info.response)
-    } catch (emailError) {
-      console.error("Error sending email:", emailError)
-      throw emailError
-    }
-
-    // Clean up the PDF file if it was created
-    if (pdfGenerated) {
-      try {
-        if (fs.existsSync(pdfFilePath)) {
-          setTimeout(() => {
-            try {
-              fs.unlinkSync(pdfFilePath)
-              console.log("Temporary PDF file deleted successfully")
-            } catch (innerError) {
-              console.error("Warning: Could not delete temporary PDF file:", innerError)
-            }
-          }, 10000)
-        }
-      } catch (deleteError) {
-        console.error("Warning: Could not delete temporary PDF file:", deleteError)
-      }
-    }
+    const info = await transporter.sendMail(mailOptions)
+    console.log("Email sent successfully:", info.response)
 
     return { success: true, message: "Receipt email sent successfully" }
   } catch (error) {
@@ -1232,7 +1114,7 @@ app.post("/api/create-order", async (req, res) => {
         customer_phone: customerDetails.customer_phone,
       },
       order_meta: {
-        return_url: `${process.env.FRONTEND_URL}/payment-status?order_id=${orderId}`,
+        return_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-status?order_id=${orderId}`,
       },
     }
 
@@ -1410,6 +1292,14 @@ app.post("/api/send-receipt", async (req, res) => {
 // Generate receipt PDF endpoint (updated to use puppeteer PDF generation)
 app.post("/api/generate-receipt", async (req, res) => {
   try {
+    // For Vercel, return error as PDF generation is not supported
+    if (process.env.VERCEL === "1") {
+      return res.status(400).json({
+        success: false,
+        message: "PDF generation not available on Vercel. Please use localhost for this feature.",
+      });
+    }
+
     let orderData, bookingDetails, packageDetails
 
     try {
@@ -1438,7 +1328,7 @@ app.post("/api/generate-receipt", async (req, res) => {
 
     const orderId = orderData?.order_id || `receipt_${Date.now()}`
     const uniqueId = Date.now().toString().slice(-4)
-    const pdfFilePath = path.join(tempUploadsDir, `receipt_${orderId}_${uniqueId}.pdf`)
+    const pdfFilePath = path.join(uploadsDir, "temp", `receipt_${orderId}_${uniqueId}.pdf`)
 
     console.log("Generating receipt PDF for order:", orderId)
 
@@ -1461,6 +1351,7 @@ app.post("/api/generate-receipt", async (req, res) => {
 
     res.send(fileData)
 
+    // Clean up file after sending
     setTimeout(() => {
       try {
         if (fs.existsSync(pdfFilePath)) {
@@ -1487,45 +1378,7 @@ app.get("/api/ha", (req, res) => {
   res.send("Cashfree Payment Gateway API is running")
 })
 
-// Add this code to your server.js file, after your existing endpoints
-
-// Create custom package requests table if it doesn't exist
-// Remove MySQL table creation and use Mongoose schema definition instead
-// (async () => {
-//   try {
-//     const connection = await pool.getConnection();
-
-//     // Create custom_package_requests table if it doesn't exist
-//     await connection.execute(`
-//       CREATE TABLE IF NOT EXISTS custom_package_requests (
-//         id INT AUTO_INCREMENT PRIMARY KEY,
-//         full_name VARCHAR(100) NOT NULL,
-//         email VARCHAR(100) NOT NULL,
-//         phone VARCHAR(20) NOT NULL,
-//         destination VARCHAR(100) NOT NULL,
-//         start_date DATE NOT NULL,
-//         duration VARCHAR(20) NOT NULL,
-//         budget VARCHAR(20) NOT NULL,
-//         travelers VARCHAR(10) NOT NULL,
-//         activities TEXT,
-//         accommodation VARCHAR(50) NOT NULL,
-//         transportation VARCHAR(50) NOT NULL,
-//         special_requests TEXT,
-//         status VARCHAR(20) DEFAULT 'pending',
-//         estimated_price DECIMAL(10,2),
-//         request_date DATETIME NOT NULL,
-//         last_updated DATETIME
-//       )
-//     `);
-
-//     console.log("Custom package requests table created or already exists");
-//     connection.release();
-//   } catch (error) {
-//     console.error("Error creating custom package requests table:", error);
-//   }
-// })();
-
-// customize package section
+// Customize package section
 
 app.post("/api/submit-custom-package", async (req, res) => {
   try {
@@ -2222,169 +2075,6 @@ app.get("/api/destinations/:destinationName/packages", async (req, res) => {
   }
 })
 
-app.post("/api/submit-custom-package", async (req, res) => {
-  try {
-    console.log("[v0] Custom package request received:", req.body)
-
-    const {
-      fullName,
-      email,
-      phone,
-      origin,
-      destination,
-      startDate,
-      duration,
-      budget,
-      travelers,
-      activities,
-      accommodation,
-      transportation,
-      specialRequests,
-    } = req.body
-
-    // Validate required fields
-    if (!fullName || !email || !phone || !origin || !destination) {
-      console.error("[v0] Missing required fields in custom package request")
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      })
-    }
-
-    // Generate a unique request ID
-    const requestId = `CP_${Date.now()}_${Math.floor(Math.random() * 1000)}`
-
-    const newCustomPackageRequest = new CustomPackageRequest({
-      full_name: fullName,
-      email: email,
-      phone: phone,
-      departure_location: origin, // Map origin to departure_location
-      destination: destination,
-      start_date: new Date(startDate),
-      duration: duration,
-      budget: budget,
-      travelers: Number.parseInt(travelers) || 1,
-      activities: Array.isArray(activities) && activities.length > 0 ? activities.join(", ") : activities || "",
-      accommodation: accommodation || "standard",
-      transportation: transportation || "public",
-      special_requests: specialRequests || "",
-      status: "pending",
-      request_date: new Date(),
-    })
-
-    const savedCustomPackageRequest = await newCustomPackageRequest.save()
-    console.log(`[v0] Custom package request saved with ID: ${requestId} and departure_location: ${origin}`)
-
-    // Send notification email to admin
-    try {
-      await sendCustomPackageNotification(process.env.EMAIL_USER, "New Custom Package Request", {
-        fullName,
-        email,
-        phone,
-        origin,
-        destination,
-        startDate,
-        duration,
-        budget,
-        travelers,
-        activities,
-        accommodation,
-        transportation,
-        specialRequests,
-        requestId,
-      })
-    } catch (emailError) {
-      console.error("Error sending admin notification email:", emailError)
-      // Continue even if email fails
-    }
-
-    // Send confirmation email to user
-    try {
-      await sendCustomPackageConfirmation(email, "Your Custom Travel Package Request", {
-        fullName,
-        destination,
-        startDate,
-        duration,
-      })
-    } catch (emailError) {
-      console.error("Error sending confirmation email:", emailError)
-      // Continue even if email fails
-    }
-
-    res.json({
-      success: true,
-      message: "Custom package request submitted successfully",
-      requestId,
-    })
-  } catch (error) {
-    console.error("Error submitting custom package request:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to submit custom package request",
-      error: error.message,
-    })
-  }
-})
-
-app.get("/api/custom-package-requests", async (req, res) => {
-  try {
-    const requests = await CustomPackageRequest.find({}).sort({
-      request_date: -1,
-    })
-
-    res.json({
-      success: true,
-      requests: requests,
-    })
-  } catch (error) {
-    console.error("Error fetching custom package requests:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch custom package requests",
-      error: error.message,
-    })
-  }
-})
-
-app.put("/api/custom-package-requests/:id", async (req, res) => {
-  try {
-    const { id } = req.params
-    const { status } = req.body
-
-    if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: "Status is required",
-      })
-    }
-
-    const updatedRequest = await CustomPackageRequest.findByIdAndUpdate(
-      id,
-      { status, last_updated: new Date() },
-      { new: true },
-    )
-
-    if (!updatedRequest) {
-      return res.status(404).json({
-        success: false,
-        message: "Request not found",
-      })
-    }
-
-    res.json({
-      success: true,
-      message: "Custom package request updated successfully",
-    })
-  } catch (error) {
-    console.error("Error updating custom package request:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to update custom package request",
-      error: error.message,
-    })
-  }
-})
-
 app.post("/api/submit-booking-request", async (req, res) => {
   try {
     const { bookingDetails, packageDetails, totalPrice } = req.body
@@ -2874,9 +2564,21 @@ app.post("/api/booking-requests", async (req, res) => {
   }
 })
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`)
-})
+// Health check endpoint
+app.get("/", (req, res) => {
+  res.json({
+    message: "TripEasy Backend API is running",
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
 
-// Test the server
-console.log("Server code loaded successfully")
+// Start server
+if (process.env.VERCEL !== "1") {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
+
+// Export for Vercel
+export default app;
