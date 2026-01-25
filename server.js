@@ -8,6 +8,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import multer from "multer"
 import dotenv from "dotenv"
+import compression from "compression"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -57,8 +58,44 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions))
+app.use(compression({ level: 6 }))
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
+
+// Security headers middleware
+app.use((req, res, next) => {
+  // Prevent clickjacking
+  res.setHeader("X-Frame-Options", "SAMEORIGIN")
+  
+  // Prevent MIME type sniffing
+  res.setHeader("X-Content-Type-Options", "nosniff")
+  
+  // Enable XSS protection
+  res.setHeader("X-XSS-Protection", "1; mode=block")
+  
+  // Content Security Policy
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self';")
+  
+  // Referrer Policy
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+  
+  // Permissions Policy
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+  
+  // Cache headers for optimization
+  if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+    // Cache static assets for 30 days
+    res.setHeader("Cache-Control", "public, max-age=2592000, immutable")
+  } else if (req.path.match(/\.(html)$/)) {
+    // Don't cache HTML files - check every time
+    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate")
+  } else {
+    // Default cache for API responses - 5 minutes
+    res.setHeader("Cache-Control", "public, max-age=300")
+  }
+  
+  next()
+})
 
 // Helper functions for package data
 const readPackagesData = async () => {
