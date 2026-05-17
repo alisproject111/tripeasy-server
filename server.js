@@ -2,13 +2,17 @@ import express from "express"
 import cors from "cors"
 import axios from "axios"
 import nodemailer from "nodemailer"
-import puppeteer from "puppeteer-core"
+import puppeteer from "puppeteer"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import multer from "multer"
 import dotenv from "dotenv"
 import compression from "compression"
+import dns from "dns"
+
+// Resolve Node v17+ IPv6 DNS lookup issues on Windows
+dns.setDefaultResultOrder("ipv4first")
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -122,21 +126,7 @@ if (process.env.VERCEL !== "1") {
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true })
   }
-  
-  // Create subdirectories for different file types
-  const imageUploadsDir = path.join(uploadsDir, "images")
-  const pdfUploadsDir = path.join(uploadsDir, "pdfs")
-  const tempUploadsDir = path.join(uploadsDir, "temp")
 
-  if (!fs.existsSync(imageUploadsDir)) {
-    fs.mkdirSync(imageUploadsDir, { recursive: true })
-  }
-  if (!fs.existsSync(pdfUploadsDir)) {
-    fs.mkdirSync(pdfUploadsDir, { recursive: true })
-  }
-  if (!fs.existsSync(tempUploadsDir)) {
-    fs.mkdirSync(tempUploadsDir, { recursive: true })
-  }
   
   // Serve static files from uploads directory
   app.use("/uploads", express.static(uploadsDir))
@@ -149,16 +139,7 @@ const storage = multer.diskStorage({
     if (process.env.VERCEL === "1") {
       cb(null, "/tmp")
     } else {
-      let uploadPath = uploadsDir
-
-      // Determine upload path based on file type and field name
-      if (file.mimetype.startsWith("image/")) {
-        uploadPath = path.join(uploadsDir, "images")
-      } else if (file.mimetype === "application/pdf") {
-        uploadPath = path.join(uploadsDir, "pdfs")
-      }
-
-      cb(null, uploadPath)
+      cb(null, uploadsDir)
     }
   },
   filename: (req, file, cb) => {
@@ -276,7 +257,7 @@ app.post(
           // For Vercel, return file info without URL
           const fileUrl = process.env.VERCEL === "1" 
             ? `/tmp/${file.filename}` 
-            : `/uploads/${isImage ? "images" : "pdfs"}/${file.filename}`
+            : `/uploads/${file.filename}`
 
           uploadedFiles[fieldName] = fileUrl
           fileDetails[fieldName] = {
@@ -318,7 +299,7 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 
     const fileUrl = process.env.VERCEL === "1"
       ? `/tmp/${req.file.filename}`
-      : `/uploads/${req.file.mimetype.startsWith("image/") ? "images" : "pdfs"}/${req.file.filename}`
+      : `/uploads/${req.file.filename}`
 
     res.json({
       success: true,
@@ -354,7 +335,7 @@ app.post("/api/upload-multiple", upload.array("files", 10), (req, res) => {
     const uploadedFiles = req.files.map((file) => {
       const fileUrl = process.env.VERCEL === "1"
         ? `/tmp/${file.filename}`
-        : `/uploads/${file.mimetype.startsWith("image/") ? "images" : "pdfs"}/${file.filename}`
+        : `/uploads/${file.filename}`
       
       return {
         filename: file.filename,
@@ -394,22 +375,24 @@ app.get("/api/files", (req, res) => {
 
     const { type } = req.query // 'images' or 'pdfs'
 
-    let targetDir = uploadsDir
-    let urlPrefix = "/uploads"
+    const targetDir = uploadsDir
+    const urlPrefix = "/uploads"
 
-    if (type === "images") {
-      targetDir = path.join(uploadsDir, "images")
-      urlPrefix = "/uploads/images"
-    } else if (type === "pdfs") {
-      targetDir = path.join(uploadsDir, "pdfs")
-      urlPrefix = "/uploads/pdfs"
-    }
+    const isImageFilter = type === "images"
+    const isPdfFilter = type === "pdfs"
 
     const files = fs
       .readdirSync(targetDir)
       .filter((file) => {
         const filePath = path.join(targetDir, file)
-        return fs.statSync(filePath).isFile()
+        if (!fs.statSync(filePath).isFile()) return false
+        if (isImageFilter) {
+          return /\.(jpg|jpeg|png|gif|webp)$/i.test(file)
+        }
+        if (isPdfFilter) {
+          return /\.pdf$/i.test(file)
+        }
+        return true
       })
       .map((file) => {
         const filePath = path.join(targetDir, file)
@@ -450,17 +433,7 @@ app.delete("/api/files/:filename", (req, res) => {
     }
 
     const { filename } = req.params
-    const { type } = req.query // 'images' or 'pdfs'
-
-    let targetDir = uploadsDir
-
-    if (type === "images") {
-      targetDir = path.join(uploadsDir, "images")
-    } else if (type === "pdfs") {
-      targetDir = path.join(uploadsDir, "pdfs")
-    }
-
-    const filePath = path.join(targetDir, filename)
+    const filePath = path.join(uploadsDir, filename)
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({
@@ -944,11 +917,54 @@ const generateReceiptHTML = (orderData, bookingDetails, packageDetails) => {
   `
 }
 
-// FIXED: Improved PDF generation function - Disabled for Vercel
+// FIXED: Improved PDF generation function - Enabled for localhost, disabled for Vercel
 async function generatePDF(html, outputPath) {
-  // TEMPORARY: For Vercel deployment, skip PDF generation
-  console.log("PDF generation disabled for Vercel deployment");
-  throw new Error("PDF generation not available on Vercel. Use localhost for PDF features.");
+  if (process.env.VERCEL === "1") {
+    console.log("PDF generation disabled for Vercel deployment");
+    throw new Error("PDF generation not available on Vercel. Use localhost for PDF features.");
+  }
+
+  let browser;
+  try {
+    console.log("Launching Puppeteer for PDF generation...");
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+    
+    const page = await browser.newPage();
+    
+    // Set page content
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    
+    // Ensure parent directory exists
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    // Generate PDF
+    await page.pdf({
+      path: outputPath,
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "20px",
+        right: "20px",
+        bottom: "20px",
+        left: "20px"
+      }
+    });
+    
+    console.log("PDF generated successfully at:", outputPath);
+  } catch (error) {
+    console.error("Error inside generatePDF helper:", error);
+    throw error;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 }
 
 // FIXED: Improved sendReceiptEmail function with better error handling
@@ -974,7 +990,7 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
     if (process.env.VERCEL !== "1") {
       try {
         const pdfFilePath = path.join(
-          __dirname, "uploads", "temp",
+          __dirname, "uploads",
           `receipt_${orderData.order_id}_${to.replace(/[^a-zA-Z0-9]/g, "")}.pdf`,
         )
 
@@ -1377,7 +1393,7 @@ app.post("/api/generate-receipt", async (req, res) => {
 
     const orderId = orderData?.order_id || `receipt_${Date.now()}`
     const uniqueId = Date.now().toString().slice(-4)
-    const pdfFilePath = path.join(uploadsDir, "temp", `receipt_${orderId}_${uniqueId}.pdf`)
+    const pdfFilePath = path.join(uploadsDir, `receipt_${orderId}_${uniqueId}.pdf`)
 
     console.log("Generating receipt PDF for order:", orderId)
 
@@ -1716,8 +1732,33 @@ const sendCustomPackageConfirmation = async (to, subject, requestData) => {
 
 app.get("/api/packages", async (req, res) => {
   try {
-    const packages = await Package.find({})
-    const categories = [...new Set(packages.map((pkg) => pkg.category))]
+    const limit = parseInt(req.query.limit)
+    const featured = req.query.featured === "true"
+
+    let packages = []
+    if (featured) {
+      // First fetch featured packages
+      packages = await Package.find({ featured: true })
+      
+      // If we have a limit and need more packages to satisfy the limit, backfill with non-featured
+      if (limit && !isNaN(limit) && packages.length < limit) {
+        const additionalNeeded = limit - packages.length
+        const additionalPackages = await Package.find({ featured: { $ne: true } }).limit(additionalNeeded)
+        packages = packages.concat(additionalPackages)
+      } else if (limit && !isNaN(limit)) {
+        packages = packages.slice(0, limit)
+      }
+    } else {
+      let packagesQuery = Package.find({})
+      if (limit && !isNaN(limit)) {
+        packagesQuery = packagesQuery.limit(limit)
+      }
+      packages = await packagesQuery
+    }
+    
+    // Still fetch all categories and destinations so client-side filters work
+    const allPackages = await Package.find({}, 'category')
+    const categories = [...new Set(allPackages.map((pkg) => pkg.category))]
 
     const destinations = await Destination.find({})
 
@@ -1979,10 +2020,46 @@ app.get("/api/admin/packages/:id", async (req, res) => {
 app.get("/api/destinations", async (req, res) => {
   try {
     const destinations = await Destination.find({})
+    
+    // Fetch all packages with only name and location fields (highly lightweight)
+    const packages = await Package.find({}, "location name")
+
+    const getPackageCountForDestination = (destination) => {
+      if (!destination.name) return 0
+      const destinationName = destination.name.toLowerCase()
+
+      const commonWords = [
+        "india", "the", "and", "&", "of", "in", "at", "to", "for", "with", "by", "a", "an",
+        "escape", "retreat", "tour", "adventure", "getaway", "vacation", "holiday", "trip",
+        "experience", "expedition", "journey", "splendor", "bliss", "explorer", "package", "packages"
+      ]
+
+      const locationWords = destinationName
+        .split(/[\s,&-]+/)
+        .filter((word) => word.length > 2 && !commonWords.includes(word))
+
+      const matchingPackages = packages.filter((pkg) => {
+        if (!pkg.location) return false
+        const packageLocation = pkg.location.toLowerCase()
+        const packageName = pkg.name.toLowerCase()
+        return locationWords.some((word) => packageLocation.includes(word) || packageName.includes(word))
+      })
+
+      return matchingPackages.length
+    }
+
+    const destinationsWithCounts = destinations.map((dest) => {
+      const destObj = dest.toObject ? dest.toObject() : dest
+      return {
+        ...destObj,
+        count: getPackageCountForDestination(destObj),
+      }
+    })
+
     res.json({
       success: true,
       data: {
-        destinations: destinations,
+        destinations: destinationsWithCounts,
       },
     })
   } catch (error) {
