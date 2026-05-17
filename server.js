@@ -78,7 +78,7 @@ app.use((req, res, next) => {
   res.setHeader("X-XSS-Protection", "1; mode=block")
   
   // Content Security Policy
-  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self';")
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self';")
   
   // Referrer Policy
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -968,7 +968,7 @@ async function generatePDF(html, outputPath) {
 }
 
 // FIXED: Improved sendReceiptEmail function with better error handling
-const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageDetails) => {
+const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageDetails, pdfBase64 = null) => {
   try {
     // Check if this email has already been sent to this recipient for this order
     const emailKey = `${to}_${orderData.order_id}`
@@ -986,8 +986,15 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
 
     const attachments = []
 
-    // Only try to generate PDF if not on Vercel
-    if (process.env.VERCEL !== "1") {
+    if (pdfBase64) {
+      console.log("Attaching client-supplied Base64 PDF receipt to email")
+      attachments.push({
+        filename: `TripEasy_Receipt_${orderData.order_id}.pdf`,
+        content: pdfBase64,
+        encoding: "base64",
+        contentType: "application/pdf",
+      })
+    } else if (process.env.VERCEL !== "1") {
       try {
         const pdfFilePath = path.join(
           __dirname, "uploads",
@@ -1313,7 +1320,7 @@ app.post("/api/save-booking", async (req, res) => {
 // Send receipt endpoint
 app.post("/api/send-receipt", async (req, res) => {
   try {
-    const { orderData, bookingDetails, packageDetails } = req.body
+    const { orderData, bookingDetails, packageDetails, pdfBase64 } = req.body
 
     if (!orderData || !bookingDetails || !packageDetails) {
       return res.status(400).json({
@@ -1341,6 +1348,7 @@ app.post("/api/send-receipt", async (req, res) => {
       orderData,
       bookingDetails,
       packageDetails,
+      pdfBase64,
     )
 
     res.json(result)
