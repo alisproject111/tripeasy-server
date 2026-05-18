@@ -1552,10 +1552,13 @@ app.post("/api/send-receipt", async (req, res) => {
       pdfBase64,
     )
 
-    // Send admin notification email asynchronously (non-blocking)
-    sendBookingConfirmationAdminEmail(orderData, bookingDetails, packageDetails, pdfBase64)
-      .then(() => console.log("Admin notification sent asynchronously"))
-      .catch((err) => console.error("Async admin notification failed:", err))
+    // Send admin notification email
+    try {
+      await sendBookingConfirmationAdminEmail(orderData, bookingDetails, packageDetails, pdfBase64)
+      console.log("Admin notification sent successfully")
+    } catch (err) {
+      console.error("Error sending admin notification email:", err)
+    }
 
     res.json(result)
   } catch (error) {
