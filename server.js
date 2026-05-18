@@ -1880,7 +1880,7 @@ const sendCustomPackageNotification = async (to, subject, requestData) => {
             <p><strong>Special Requests:</strong> ${requestData.specialRequests || "None"}</p>
           </div>
           
-          <p>Please log in to the admin dashboard to review and respond to this request.</p>
+          <p>Please review and respond to this request using the details provided above.</p>
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
             <p>This is an automated notification from the TripEasy system.</p>
@@ -2022,7 +2022,27 @@ const sendCustomPackageConfirmation = async (to, subject, requestData) => {
   }
 }
 
-// NEW DYNAMIC PACKAGE API ENDPOINTS
+// Helper to extract primary place from location or package name for home page unique selection
+const getPrimaryPlace = (location) => {
+  if (!location) return "";
+  const normalized = location.toLowerCase();
+  
+  const knownPlaces = [
+    "goa", "manali", "shimla", "daman", "mount abu", "somnath", "vietnam", "bali", 
+    "pushkar", "thailand", "udaipur", "vrindavan", "darjeeling", "gangtok", "singapore", 
+    "uttarakhand", "dubai", "hong kong", "oman", "varanasi", "ujjain", "matheran", 
+    "saputara", "dwarka", "silvassa", "dudhani", "char dham"
+  ];
+
+  for (const place of knownPlaces) {
+    if (normalized.includes(place)) {
+      return place;
+    }
+  }
+
+  // Fallback to the first part of the location
+  return normalized.split(",")[0].trim();
+};
 
 app.get("/api/packages", async (req, res) => {
   try {
@@ -2032,7 +2052,36 @@ app.get("/api/packages", async (req, res) => {
     let packages = []
     if (featured) {
       // First fetch featured packages
-      packages = await Package.find({ featured: true })
+      const allFeatured = await Package.find({ featured: true })
+      
+      // Select packages from unique places
+      const selected = []
+      const seenPlaces = new Set()
+      
+      for (const pkg of allFeatured) {
+        const place = getPrimaryPlace(pkg.location || pkg.name)
+        if (!seenPlaces.has(place)) {
+          selected.push(pkg)
+          seenPlaces.add(place)
+        }
+        if (limit && !isNaN(limit) && selected.length >= limit) {
+          break
+        }
+      }
+      
+      // If we couldn't satisfy the limit with unique places, backfill with remaining featured packages
+      if (limit && !isNaN(limit) && selected.length < limit) {
+        for (const pkg of allFeatured) {
+          if (!selected.some(s => s._id.toString() === pkg._id.toString())) {
+            selected.push(pkg)
+          }
+          if (selected.length >= limit) {
+            break
+          }
+        }
+      }
+      
+      packages = selected
       
       // If we have a limit and need more packages to satisfy the limit, backfill with non-featured
       if (limit && !isNaN(limit) && packages.length < limit) {
@@ -2114,200 +2163,6 @@ app.get("/api/packages/:identifier", async (req, res) => {
   }
 })
 
-// Admin API endpoints
-app.get("/api/admin/packages", async (req, res) => {
-  try {
-    const packages = await Package.find({})
-    res.json({
-      success: true,
-      data: {
-        packages: packages,
-      },
-    })
-  } catch (error) {
-    console.error("Error fetching packages:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch packages",
-      error: error.message,
-    })
-  }
-})
-
-app.post("/api/admin/packages", async (req, res) => {
-  try {
-    const newPackage = req.body
-
-    // Validate required fields
-    const requiredFields = ["name", "price", "duration", "location", "category", "description"]
-    const missingFields = requiredFields.filter((field) => !newPackage[field])
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-      })
-    }
-
-    // Validate numeric fields
-    if (isNaN(newPackage.price) || newPackage.price <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid price value",
-      })
-    }
-    if (isNaN(newPackage.duration) || newPackage.duration <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid duration value",
-      })
-    }
-
-    // Get max ID for new package
-    const maxPackage = await Package.findOne({}).sort({ id: -1 })
-    const nextId = (maxPackage?.id || 0) + 1
-
-    // Ensure highlights and itinerary are arrays
-    if (newPackage.highlights && !Array.isArray(newPackage.highlights)) {
-      newPackage.highlights = [newPackage.highlights]
-    } else if (!newPackage.highlights) {
-      newPackage.highlights = []
-    }
-    if (newPackage.itinerary && !Array.isArray(newPackage.itinerary)) {
-      newPackage.itinerary = [newPackage.itinerary]
-    } else if (!newPackage.itinerary) {
-      newPackage.itinerary = []
-    }
-
-    // Add default values
-    newPackage.id = nextId
-    newPackage.rating = newPackage.rating || 0
-    newPackage.reviews = newPackage.reviews || 0
-    newPackage.featured = newPackage.featured || false
-    newPackage.image = newPackage.image || ""
-    newPackage.pdfUrl = newPackage.pdfUrl || ""
-
-    const createdPackage = await Package.create(newPackage)
-
-    res.json({
-      success: true,
-      message: "Package created successfully",
-      data: {
-        package: createdPackage,
-      },
-    })
-  } catch (error) {
-    console.error("Error creating package:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to create package",
-      error: error.message,
-    })
-  }
-})
-
-app.put("/api/admin/packages/:id", async (req, res) => {
-  try {
-    const packageId = Number.parseInt(req.params.id, 10)
-    const updatedPackageData = req.body
-
-    // Ensure highlights and itinerary are arrays
-    if (updatedPackageData.highlights && !Array.isArray(updatedPackageData.highlights)) {
-      updatedPackageData.highlights = [updatedPackageData.highlights]
-    } else if (!updatedPackageData.highlights) {
-      updatedPackageData.highlights = []
-    }
-    if (updatedPackageData.itinerary && !Array.isArray(updatedPackageData.itinerary)) {
-      updatedPackageData.itinerary = [updatedPackageData.itinerary]
-    } else if (!updatedPackageData.itinerary) {
-      updatedPackageData.itinerary = []
-    }
-
-    const updatedPackage = await Package.findOneAndUpdate(
-      { id: packageId },
-      { ...updatedPackageData, updatedAt: new Date() },
-      { new: true },
-    )
-
-    if (!updatedPackage) {
-      return res.status(404).json({
-        success: false,
-        message: "Package not found",
-      })
-    }
-
-    res.json({
-      success: true,
-      message: "Package updated successfully",
-      data: {
-        package: updatedPackage,
-      },
-    })
-  } catch (error) {
-    console.error("Error updating package:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to update package",
-      error: error.message,
-    })
-  }
-})
-
-app.delete("/api/admin/packages/:id", async (req, res) => {
-  try {
-    const packageId = Number.parseInt(req.params.id, 10)
-
-    const deletedPackage = await Package.findOneAndDelete({ id: packageId })
-
-    if (!deletedPackage) {
-      return res.status(404).json({
-        success: false,
-        message: "Package not found",
-      })
-    }
-
-    res.json({
-      success: true,
-      message: "Package deleted successfully",
-    })
-  } catch (error) {
-    console.error("Error deleting package:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete package",
-      error: error.message,
-    })
-  }
-})
-
-app.get("/api/admin/packages/:id", async (req, res) => {
-  try {
-    const packageId = Number.parseInt(req.params.id, 10)
-
-    const package_ = await Package.findOne({ id: packageId })
-
-    if (!package_) {
-      return res.status(404).json({
-        success: false,
-        message: "Package not found",
-      })
-    }
-
-    res.json({
-      success: true,
-      data: {
-        package: package_,
-      },
-    })
-  } catch (error) {
-    console.error("Error fetching package:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch package",
-      error: error.message,
-    })
-  }
-})
 
 // NEW ENDPOINTS FOR DESTINATIONS
 // Get all destinations
@@ -2995,7 +2850,7 @@ app.post("/api/booking-requests", async (req, res) => {
               : ""
           }
           
-          <p style="font-size: 14px; color: #7f8c8d;">Please log in to the admin dashboard to review and manage this booking request.</p>
+          <p style="font-size: 14px; color: #7f8c8d;">Please review and manage this booking request using the details provided above.</p>
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
             <p style="margin-bottom: 5px;">This is an automated notification from the TripEasy system.</p>
