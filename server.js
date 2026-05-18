@@ -907,7 +907,7 @@ const generateReceiptHTML = (orderData, bookingDetails, packageDetails) => {
           </div>
           <div class="contact">
             <p>Thank you for booking with TripEasy!</p>
-            <p>For any queries, please contact us at <strong>booking.tripeasy@gmail.com</strong> or call <strong>+91 9157450389</strong></p>
+            <p>For any queries, please contact us at <strong>booking.tripeasy@gmail.com</strong> or call <strong>+91 7880789486</strong></p>
             <p>© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
           </div>
         </div>
@@ -1020,40 +1020,78 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
 
     // Send email with or without PDF attachment
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"TripEasy Travel" <${process.env.EMAIL_USER}>`,
       to: to,
       subject: subject,
       html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <h1 style="color: #2c3e50; margin-bottom: 5px; font-size: 24px;">Thank You for Your Booking!</h1>
-            <p style="color: #7f8c8d; font-size: 16px;">Your adventure awaits</p>
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+            <h1 style="color: #e53935; margin-bottom: 5px; font-size: 26px; font-weight: 700;">Booking Confirmed!</h1>
+            <p style="color: #7f8c8d; font-size: 16px; margin-top: 5px;">Your adventure awaits with TripEasy</p>
           </div>
           
-          <div style="background-color: #f9f9f9; border-left: 4px solid #3498db; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; font-size: 16px;">Dear <strong>${bookingDetails.fullName}</strong>,</p>
+          <div style="background-color: #fdf2f2; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #2c3e50;">Dear <strong>${bookingDetails.fullName}</strong>,</p>
           </div>
           
-          <p>Your booking for <strong>${packageDetails.name}</strong> has been confirmed. Your payment of <strong>₹${orderData.order_amount.toLocaleString("en-IN")}</strong> has been successfully processed.</p>
+          <p style="font-size: 15px; color: #555;">Thank you for booking with TripEasy! Your payment has been successfully processed and your booking is confirmed. Below are your booking details:</p>
           
-          <div style="background-color: #eef7fe; border-radius: 4px; padding: 15px; margin: 20px 0;">
-            <h3 style="color: #2c3e50; margin-top: 0;">Booking Details:</h3>
-            <p><strong>Order ID:</strong> ${orderData.order_id}</p>
-            <p><strong>Travel Date:</strong> ${bookingDetails.travelDate}</p>
-            <p><strong>Destination:</strong> ${packageDetails.location}</p>
-            <p><strong>Duration:</strong> ${packageDetails.duration} Days</p>
-            <p><strong>Number of Travelers:</strong> ${bookingDetails.travelers}</p>
+          <!-- Booking Details Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✈️ Booking Details
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Order / Booking ID:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">#${orderData.order_id}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Package Name:</td>
+                <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${packageDetails.name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Destination:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.location}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">No. of Travelers:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelers}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Amount Paid:</td>
+                <td style="padding: 6px 0; color: #e53935; font-weight: bold; font-size: 16px;">₹${orderData.order_amount.toLocaleString("en-IN")}</td>
+              </tr>
+            </table>
           </div>
           
-          <p><strong>Important:</strong> Your original booking package tickets will be provided within a few hours.</p>
-          ${attachments.length > 0 ? "<p>Please find your booking receipt attached to this email.</p>" : "<p>Your booking receipt will be available for download from your account.</p>"}
+          <p style="font-size: 15px; color: #555;"><strong>Important Note:</strong> Your original booking package tickets will be provided within a few hours.</p>
+          ${attachments.length > 0 ? "<p style='font-size: 15px; color: #555;'>Please find your booking receipt attached to this email.</p>" : ""}
           
-          <p>If you have any questions or need assistance, please don't hesitate to contact us.</p>
+          <!-- Thank you contacting & Support section -->
+          <div style="background-color: #fcf8e3; border: 1px solid #faebcc; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+            <p style="font-size: 15px; color: #8a6d3b; margin: 0 0 10px 0; font-weight: bold;">
+              🙏 Thank you for contacting TripEasy!
+            </p>
+            <p style="font-size: 14px; color: #555; margin: 0 0 10px 0;">
+              If you have any questions or would like to provide additional information, please don't hesitate to reach out to us:
+            </p>
+            <p style="font-size: 15px; margin: 5px 0;">
+              <strong style="color: #e53935;">📧 booking.tripeasy@gmail.com</strong>
+            </p>
+            <p style="font-size: 15px; margin: 5px 0;">
+              <strong style="color: #e53935;">📞 +91 7880789486</strong>
+            </p>
+          </div>
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
-            <p>We look forward to providing you with an amazing travel experience!</p>
-            <p>Best regards,<br><strong>TripEasy Team</strong></p>
-            <p style="font-size: 12px; margin-top: 20px;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
+            <p style="margin-bottom: 5px;">We look forward to providing you with an amazing travel experience!</p>
+            <p style="margin-top: 5px; margin-bottom: 25px;">Best regards,<br><strong style="color: #2c3e50;">TripEasy Team</strong></p>
+            <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
           </div>
         </div>
       `,
@@ -1074,6 +1112,169 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
       message: "Failed to send receipt email",
       error: error.message,
     }
+  }
+}
+
+// Function to send booking confirmation email to admin
+const sendBookingConfirmationAdminEmail = async (orderData, bookingDetails, packageDetails, pdfBase64 = null) => {
+  try {
+    const adminEmailKey = `admin_confirm_${orderData.order_id}`
+    if (emailsSent.has(adminEmailKey)) {
+      console.log(`Admin booking confirmation email already sent for order ${orderData.order_id}, skipping duplicate`)
+      return { success: true }
+    }
+
+    emailsSent.add(adminEmailKey)
+    console.log("Sending booking confirmation email to admin (booking.tripeasy@gmail.com)")
+
+    let travelersList = `1. ${bookingDetails.fullName} (Lead Traveler)`
+    if (bookingDetails.additionalTravelers && bookingDetails.additionalTravelers.length > 0) {
+      bookingDetails.additionalTravelers.forEach((traveler, index) => {
+        const name = traveler.fullName || traveler.name || `Traveler ${index + 2}`
+        travelersList += `\n${index + 2}. ${name}`
+      })
+    }
+
+    const attachments = []
+    if (pdfBase64) {
+      attachments.push({
+        filename: `TripEasy_Receipt_${orderData.order_id}.pdf`,
+        content: pdfBase64,
+        encoding: "base64",
+        contentType: "application/pdf",
+      })
+    }
+
+    const adminEmailHtml = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+          <h1 style="color: #2e7d32; margin-bottom: 5px; font-size: 26px; font-weight: 700;">Booking Confirmed & Paid!</h1>
+          <p style="color: #7f8c8d; font-size: 16px; margin-top: 5px;">Payment received for Order #${orderData.order_id}</p>
+        </div>
+        
+        <div style="background-color: #e8f5e9; border-left: 4px solid #2e7d32; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 16px; color: #1b5e20;">A new booking has been successfully paid and confirmed by <strong>${bookingDetails.fullName}</strong>.</p>
+        </div>
+        
+        <!-- Customer Info Card -->
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #2e7d32; margin-top: 0; border-bottom: 2px solid #a5d6a7; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            👤 Customer Details
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Name:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.fullName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Email:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Phone:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.phone}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <!-- Booking Details Card -->
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #2e7d32; margin-top: 0; border-bottom: 2px solid #a5d6a7; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            ✈️ Package & Travel Details
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Package Name:</td>
+              <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${packageDetails.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Destination:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.location}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">No. of Travelers:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelers}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Payment Details Card -->
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #2e7d32; margin-top: 0; border-bottom: 2px solid #a5d6a7; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            💳 Payment Details
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Order ID:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${orderData.order_id}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Amount Paid:</td>
+              <td style="padding: 6px 0; color: #2e7d32; font-weight: bold;">₹${orderData.order_amount.toLocaleString("en-IN")}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Payment Status:</td>
+              <td style="padding: 6px 0; color: #2e7d32; font-weight: bold;">${orderData.order_status || "PAID"}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Payment Time:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${orderData.payment_time ? new Date(orderData.payment_time).toLocaleString("en-IN") : new Date().toLocaleString("en-IN")}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Travelers List Card -->
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #2e7d32; margin-top: 0; border-bottom: 2px solid #a5d6a7; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            👥 Travelers List
+          </h3>
+          <div style="color: #2c3e50; font-size: 14px; white-space: pre-line; margin-top: 10px; line-height: 1.6;">${travelersList}</div>
+        </div>
+        
+        <!-- Special Requests Card (if present) -->
+        ${
+          bookingDetails.specialRequests
+            ? `
+        <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            ✍️ Special Requests
+          </h3>
+          <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
+        </div>
+        `
+            : ""
+        }
+        
+        <p style="font-size: 14px; color: #7f8c8d;">This booking and payment has been successfully recorded in the database. Please process the package further.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
+          <p style="margin-bottom: 5px;">This is an automated notification from the TripEasy system.</p>
+          <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
+        </div>
+      </div>
+    `
+
+    const adminMailOptions = {
+      from: `"TripEasy Travel" <${process.env.EMAIL_USER}>`,
+      to: "booking.tripeasy@gmail.com",
+      subject: `New Confirmed Booking (Paid) - ${packageDetails.name} | TripEasy`,
+      html: adminEmailHtml,
+      attachments: attachments,
+    }
+
+    await transporter.sendMail(adminMailOptions)
+    console.log("Admin notification for confirmed booking sent successfully")
+    return { success: true }
+  } catch (error) {
+    console.error("Error sending admin confirmed booking email:", error)
+    // Clean up key on failure
+    const adminEmailKey = `admin_confirm_${orderData.order_id}`
+    emailsSent.delete(adminEmailKey)
+    return { success: false, error: error.message }
   }
 }
 
@@ -1350,6 +1551,11 @@ app.post("/api/send-receipt", async (req, res) => {
       packageDetails,
       pdfBase64,
     )
+
+    // Send admin notification email asynchronously (non-blocking)
+    sendBookingConfirmationAdminEmail(orderData, bookingDetails, packageDetails, pdfBase64)
+      .then(() => console.log("Admin notification sent asynchronously"))
+      .catch((err) => console.error("Async admin notification failed:", err))
 
     res.json(result)
   } catch (error) {
