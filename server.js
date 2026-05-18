@@ -31,37 +31,43 @@ import BookingRequest from "./models/BookingRequest.js"
 const app = express()
 const port = process.env.PORT || 5000
 
-const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    
-    // ALL VERCEL URLs
-    "https://tripeasy-client-smoky.vercel.app",
-    "https://tripeasy-client-smoky.vercel.app/*",
-    "https://*.vercel.app",
-    "https://*.vercel.app/*",
-    
-    // YOUR DOMAIN
-    "https://tripeasy.in",         // ADD THIS
-    "https://www.tripeasy.in",     // ADD THIS
-    "https://tripeasy.in/*",       // ADD THIS
-    "https://www.tripeasy.in/*",   // ADD THIS
-    
-    // Environment variables
-    process.env.FRONTEND_URL,
-    process.env.CLIENT_URL,
-  ].filter(Boolean),
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-api-version", "x-request-id"],
-};
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "https://tripeasy.in",
+  "https://www.tripeasy.in",
+  "https://tripeasy-client-smoky.vercel.app"
+];
 
-app.use(cors(corsOptions))
+// Custom robust CORS middleware compatible with Express 5
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    const normalizedOrigin = origin.replace(/\/$/, "");
+    const isAllowed = allowedOrigins.includes(normalizedOrigin) || 
+                      normalizedOrigin.endsWith(".vercel.app") || 
+                      normalizedOrigin.startsWith("https://tripeasy-client");
+                      
+    if (isAllowed) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "Content-Type, Authorization, x-api-version, x-request-id");
+      
+      // Intercept preflight OPTIONS request
+      if (req.method === "OPTIONS") {
+        return res.status(204).end();
+      }
+    } else {
+      console.log(`[CORS] Rejected origin: ${origin}`);
+    }
+  }
+  next();
+});
 app.use(compression({ level: 6 }))
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
