@@ -1533,9 +1533,19 @@ app.post("/api/submit-custom-package", async (req, res) => {
     try {
       await sendCustomPackageConfirmation(email, "Your Custom Travel Package Request", {
         fullName,
+        email,
+        phone,
+        origin,
         destination,
         startDate,
         duration,
+        budget,
+        travelers,
+        activities,
+        accommodation,
+        transportation,
+        specialRequests,
+        requestId,
       })
     } catch (emailError) {
       console.error("Error sending confirmation email:", emailError)
@@ -1683,45 +1693,112 @@ const sendCustomPackageNotification = async (to, subject, requestData) => {
 // Function to send confirmation email to customer
 const sendCustomPackageConfirmation = async (to, subject, requestData) => {
   try {
+    const formattedActivities = Array.isArray(requestData.activities)
+      ? requestData.activities.join(", ")
+      : requestData.activities || "None specified"
+
     const mailOptions = {
       from: `"TripEasy Travel" <${process.env.EMAIL_USER}>`,
       to: to,
       subject: subject,
       html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <h1 style="color: #e53935; margin-bottom: 5px; font-size: 24px;">Thank You for Your Request!</h1>
-            <p style="color: #7f8c8d; font-size: 16px;">We're excited to plan your dream trip</p>
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+            <h1 style="color: #e53935; margin-bottom: 5px; font-size: 26px; font-weight: 700;">Thank You for Your Request!</h1>
+            <p style="color: #7f8c8d; font-size: 16px; margin-top: 5px;">We're excited to plan your dream trip</p>
           </div>
           
-          <div style="background-color: #f9f9f9; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; font-size: 16px;">Dear <strong>${requestData.fullName}</strong>,</p>
+          <div style="background-color: #fdf2f2; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #2c3e50;">Dear <strong>${requestData.fullName}</strong>,</p>
           </div>
           
-          <p>Thank you for submitting your custom travel package request to TripEasy. We have received your request for a trip to <strong>${
+          <p style="font-size: 15px; color: #555;">Thank you for submitting your custom travel package request to TripEasy. We have received your request for a trip to <strong>${
             requestData.destination
           }</strong> starting on <strong>${
             requestData.startDate
           }</strong> for <strong>${requestData.duration}</strong>.</p>
           
-          <p>Our travel experts are reviewing your request and will contact you within 24-48 hours with a personalized travel plan tailored to your preferences.</p>
+          <p style="font-size: 15px; color: #555;">Our travel experts are reviewing your request and will contact you within 24-48 hours with a personalized travel plan tailored to your preferences.</p>
           
-          <div style="background-color: #f5f5f5; border-radius: 4px; padding: 15px; margin: 20px 0;">
-            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px;">What happens next?</h3>
-            <ul style="padding-left: 20px;">
-              <li>Our travel experts will review your request</li>
-              <li>We'll create a customized itinerary based on your preferences</li>
-              <li>We'll contact you to discuss the details and make any necessary adjustments</li>
-              <li>Once you're satisfied, we'll finalize your booking</li>
+          <!-- Trip Details Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✈️ Trip Details
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Request ID:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">#${requestData.requestId || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Origin / Departure:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${requestData.origin || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Destination:</td>
+                <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${requestData.destination}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Start Date:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${requestData.startDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Duration:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${requestData.duration}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Budget per Person:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${requestData.budget || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">No. of Travelers:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${requestData.travelers || '1'}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <!-- Preferences Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              🌟 Your Preferences
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Activities:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${formattedActivities}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Accommodation:</td>
+                <td style="padding: 6px 0; color: #2c3e50; text-transform: capitalize;">${requestData.accommodation || 'standard'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Transportation:</td>
+                <td style="padding: 6px 0; color: #2c3e50; text-transform: capitalize;">${requestData.transportation || 'public'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; vertical-align: top;">Special Requests:</td>
+                <td style="padding: 6px 0; color: #2c3e50; white-space: pre-line;">${requestData.specialRequests || 'None'}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <!-- What happens next -->
+          <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px; font-weight: 600;">What happens next?</h3>
+            <ul style="padding-left: 20px; margin-bottom: 0; font-size: 14px; color: #555;">
+              <li style="margin-bottom: 8px;">Our travel experts will review your request</li>
+              <li style="margin-bottom: 8px;">We'll create a customized itinerary based on your preferences</li>
+              <li style="margin-bottom: 8px;">We'll contact you to discuss the details and make any necessary adjustments</li>
+              <li style="margin-bottom: 0;">Once you're satisfied, we'll finalize your booking</li>
             </ul>
           </div>
           
-          <p>If you have any questions or would like to provide additional information, please don't hesitate to contact us at <strong>booking.tripeasy@gmail.com</strong> or call us at <strong>+91 1234567890</strong>.</p>
+          <p style="font-size: 15px; color: #555;">If you have any questions or would like to provide additional information, please don't hesitate to contact us at <strong>booking.tripeasy@gmail.com</strong> or call us at <strong>+91 7880789486</strong>.</p>
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
-            <p>We look forward to creating an unforgettable travel experience for you!</p>
-            <p>Best regards,<br><strong>TripEasy Team</strong></p>
-            <p style="font-size: 12px; margin-top: 20px;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
+            <p style="margin-bottom: 5px;">We look forward to creating an unforgettable travel experience for you!</p>
+            <p style="margin-top: 5px; margin-bottom: 25px;">Best regards,<br><strong style="color: #2c3e50;">TripEasy Team</strong></p>
+            <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
           </div>
         </div>
       `,
@@ -2270,125 +2347,109 @@ app.post("/api/submit-booking-request", async (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Request Received</title>
-        <style>
-          @media only screen and (max-width: 600px) {
-            .container { width: 100% !important; padding: 10px !important; }
-            .content { padding: 15px !important; }
-            .details-table { font-size: 14px !important; }
-            .details-table td { padding: 6px 0 !important; display: block !important; width: 100% !important; }
-            .details-table .label { font-weight: bold !important; margin-bottom: 2px !important; }
-            .details-table .value { margin-bottom: 10px !important; word-wrap: break-word !important; }
-            .section { padding: 15px !important; margin: 15px 0 !important; }
-            h1 { font-size: 24px !important; }
-            h2 { font-size: 20px !important; }
-            h3 { font-size: 18px !important; }
-          }
-        </style>
       </head>
-      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f9f9f9;">
-        <div class="container" style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-          <div class="content" style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #2c5aa0; margin: 0; font-size: 28px;">TripEasy</h1>
-              <p style="color: #666; margin: 5px 0 0 0; font-size: 16px;">Your Travel Partner</p>
-            </div>
-            
-            <h2 style="color: #333; border-bottom: 2px solid #2c5aa0; padding-bottom: 10px; font-size: 22px;">Booking Request Received</h2>
-            
-            <p style="color: #333; font-size: 16px; line-height: 1.6;">
-              Dear <strong>${bookingDetails.fullName}</strong>,
-            </p>
-            
-            <p style="color: #333; font-size: 16px; line-height: 1.6;">
-              Thank you for choosing TripEasy! We have successfully received your booking request and our team will contact you soon to confirm your travel arrangements.
-            </p>
-            
-            <div class="section" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #2c5aa0; margin-top: 0; font-size: 18px;">Booking Details:</h3>
-              <table class="details-table" style="width: 100%; border-collapse: collapse; font-size: 16px;">
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Request ID:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${requestId}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Package:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${
-                    packageDetails.name
-                  }</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Destination:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${
-                    packageDetails.location
-                  }</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Duration:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${
-                    packageDetails.duration
-                  }</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Travel Date:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${new Date(
-                    bookingDetails.travelDate,
-                  ).toLocaleDateString("en-IN", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Total Travellers:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${
-                    bookingDetails.travelers
-                  }</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Total Price:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; font-weight: bold; word-wrap: break-word;">₹${
-                    totalPrice?.toLocaleString("en-IN") || "To be confirmed"
-                  }</td>
-                </tr>
-              </table>
-            </div>
-            
-            <div class="section" style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #2c5aa0; margin-top: 0; font-size: 18px;">Travellers List:</h3>
-              <div style="color: #333; font-family: Arial, sans-serif; white-space: pre-line; margin: 0; word-wrap: break-word;">${travellersList}</div>
-            </div>
-            
-            ${
-              bookingDetails.specialRequests
-                ? `
-            <div class="section" style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #856404; margin-top: 0; font-size: 18px;">Special Requests:</h3>
-              <p style="color: #856404; margin: 0; word-wrap: break-word;">${bookingDetails.specialRequests}</p>
-            </div>
-            `
-                : ""
-            }
-            
-            <div class="section" style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #155724; margin-top: 0; font-size: 18px;">What's Next?</h3>
-              <ul style="color: #155724; margin: 10px 0; padding-left: 20px;">
-                <li style="margin-bottom: 8px;">Our travel expert will contact you within 24 hours</li>
-                <li style="margin-bottom: 8px;">We'll discuss and finalize your itinerary details</li>
-                <li style="margin-bottom: 8px;">Payment and booking confirmation will follow</li>
-                <li style="margin-bottom: 8px;">You'll receive your complete travel documents</li>
-              </ul>
-            </div>
-            
-            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-              <p style="color: #666; margin: 10px 0; word-wrap: break-word;">
-                For any queries, contact us at:<br>
-                <strong style="color: #2c5aa0;">📧 info@tripeasy.com</strong><br>
-                <strong style="color: #2c5aa0;">📞 +91-XXXXXXXXXX</strong>
-              </p>
-              <p style="color: #999; font-size: 14px; margin: 20px 0 0 0;">
-                Thank you for choosing TripEasy. We look forward to making your journey memorable!
-              </p>
-            </div>
+      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f9f9; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 20px; margin-bottom: 20px;">
+          <!-- Header -->
+          <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+            <h1 style="color: #e53935; margin: 0 0 5px 0; font-size: 28px; font-weight: 700;">TripEasy</h1>
+            <p style="color: #7f8c8d; margin: 0; font-size: 16px; font-weight: 500;">Your Travel Partner</p>
+          </div>
+          
+          <h2 style="color: #2c3e50; font-size: 22px; margin-top: 0; font-weight: 600; text-align: center;">Booking Request Received</h2>
+          
+          <div style="background-color: #fdf2f2; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #2c3e50;">Dear <strong>${bookingDetails.fullName}</strong>,</p>
+          </div>
+          
+          <p style="font-size: 15px; color: #555; line-height: 1.6;">
+            Thank you for choosing TripEasy! We have successfully received your booking request and our team will contact you soon to confirm your travel arrangements.
+          </p>
+          
+          <!-- Booking Details Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✈️ Booking Details
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Request ID:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">#${requestId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Package:</td>
+                <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${packageDetails.name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Destination:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.location}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Duration:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.duration} Days</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${new Date(bookingDetails.travelDate).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Travelers:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelers}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Price:</td>
+                <td style="padding: 6px 0; color: #e53935; font-weight: bold; font-size: 16px;">₹${totalPrice?.toLocaleString("en-IN") || "To be confirmed"}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <!-- Travellers List Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              👥 Travelers List
+            </h3>
+            <div style="color: #2c3e50; font-size: 14px; white-space: pre-line; margin-top: 10px; line-height: 1.6;">${travellersList}</div>
+          </div>
+          
+          <!-- Special Requests Card (if present) -->
+          ${
+            bookingDetails.specialRequests
+              ? `
+          <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✍️ Special Requests
+            </h3>
+            <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
+          </div>
+          `
+              : ""
+          }
+          
+          <!-- What's Next Card -->
+          <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px; font-weight: 600;">What's Next?</h3>
+            <ul style="padding-left: 20px; margin-bottom: 0; font-size: 14px; color: #555; line-height: 1.6;">
+              <li style="margin-bottom: 8px;">Our travel expert will contact you within 24 hours</li>
+              <li style="margin-bottom: 8px;">We'll discuss and finalize your itinerary details</li>
+              <li style="margin-bottom: 8px;">Payment and booking confirmation will follow</li>
+              <li style="margin-bottom: 0;">You'll receive your complete travel documents</li>
+            </ul>
+          </div>
+          
+          <!-- Footer with updated details -->
+          <p style="font-size: 15px; color: #555; text-align: center;">
+            If you have any questions, please don't hesitate to contact us at:<br>
+            <strong style="color: #e53935;">📧 booking.tripeasy@gmail.com</strong> or call us at <strong style="color: #e53935;">📞 +91 7880789486</strong>.
+          </p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
+            <p style="margin-bottom: 5px;">We look forward to creating an unforgettable travel experience for you!</p>
+            <p style="margin-top: 5px; margin-bottom: 25px;">Best regards,<br><strong style="color: #2c3e50;">TripEasy Team</strong></p>
+            <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -2500,7 +2561,7 @@ app.post("/api/booking-requests", async (req, res) => {
     }
 
     // Prepare travellers list
-    let travellersList = `1. ${bookingDetails.fullName} (Lead Traveller - ID: ${savedLeadTraveler._id})`
+    let travellersList = `1. ${bookingDetails.fullName} (Lead Traveller)`
     if (bookingDetails.additionalTravelers && bookingDetails.additionalTravelers.length > 0) {
       bookingDetails.additionalTravelers.forEach((traveler, index) => {
         travellersList += `\n${index + 2}. ${traveler.fullName || traveler.name}`
@@ -2515,117 +2576,109 @@ app.post("/api/booking-requests", async (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Request Received</title>
-        <style>
-          @media only screen and (max-width: 600px) {
-            .container { width: 100% !important; padding: 10px !important; }
-            .content { padding: 15px !important; }
-            .details-table { font-size: 14px !important; }
-            .details-table td { padding: 6px 0 !important; display: block !important; width: 100% !important; }
-            .details-table .label { font-weight: bold !important; margin-bottom: 2px !important; }
-            .details-table .value { margin-bottom: 10px !important; word-wrap: break-word !important; }
-            .section { padding: 15px !important; margin: 15px 0 !important; }
-            h1 { font-size: 24px !important; }
-            h2 { font-size: 20px !important; }
-            h3 { font-size: 18px !important; }
-          }
-        </style>
       </head>
-      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f9f9f9;">
-        <div class="container" style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-          <div class="content" style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #2c5aa0; margin: 0; font-size: 28px;">TripEasy</h1>
-              <p style="color: #666; margin: 5px 0 0 0; font-size: 16px;">Your Travel Partner</p>
-            </div>
-            
-            <h2 style="color: #333; border-bottom: 2px solid #2c5aa0; padding-bottom: 10px; font-size: 22px;">Booking Request Received</h2>
-            
-            <p style="color: #333; font-size: 16px; line-height: 1.6;">
-              Dear <strong>${bookingDetails.fullName}</strong>,
-            </p>
-            
-            <p style="color: #333; font-size: 16px; line-height: 1.6;">
-              Thank you for choosing TripEasy! We have successfully received your booking request and our team will contact you soon to confirm your travel arrangements.
-            </p>
-            
-            <div class="section" style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #2c5aa0; margin-top: 0; font-size: 18px;">Booking Details:</h3>
-              <table class="details-table" style="width: 100%; border-collapse: collapse; font-size: 16px;">
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Request ID:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${requestId}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Package:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${packageDetails.name}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Destination:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${packageDetails.location}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Duration:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${packageDetails.duration}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Travel Date:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${new Date(
-                    bookingDetails.travelDate,
-                  ).toLocaleDateString("en-IN", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Total Travellers:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; word-wrap: break-word;">${bookingDetails.travelers}</td>
-                </tr>
-                <tr>
-                  <td class="label" style="padding: 8px 0; color: #666; font-weight: bold; width: 40%; vertical-align: top;">Total Price:</td>
-                  <td class="value" style="padding: 8px 0; color: #333; font-weight: bold; word-wrap: break-word;">₹${
-                    totalPrice?.toLocaleString("en-IN") || "To be confirmed"
-                  }</td>
-                </tr>
-              </table>
-            </div>
-            
-            <div class="section" style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #2c5aa0; margin-top: 0; font-size: 18px;">Travellers List:</h3>
-              <div style="color: #333; font-family: Arial, sans-serif; white-space: pre-line; margin: 0; word-wrap: break-word;">${travellersList}</div>
-            </div>
-            
-            ${
-              bookingDetails.specialRequests
-                ? `
-            <div class="section" style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #856404; margin-top: 0; font-size: 18px;">Special Requests:</h3>
-              <p style="color: #856404; margin: 0; word-wrap: break-word;">${bookingDetails.specialRequests}</p>
-            </div>
-            `
-                : ""
-            }
-            
-            <div class="section" style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #155724; margin-top: 0; font-size: 18px;">What's Next?</h3>
-              <ul style="color: #155724; margin: 10px 0; padding-left: 20px;">
-                <li style="margin-bottom: 8px;">Our travel expert will contact you within 24 hours</li>
-                <li style="margin-bottom: 8px;">We'll discuss and finalize your itinerary details</li>
-                <li style="margin-bottom: 8px;">Payment and booking confirmation will follow</li>
-                <li style="margin-bottom: 8px;">You'll receive your complete travel documents</li>
-              </ul>
-            </div>
-            
-            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-              <p style="color: #666; margin: 10px 0; word-wrap: break-word;">
-                For any queries, contact us at:<br>
-                <strong style="color: #2c5aa0;">📧 info@tripeasy.com</strong><br>
-                <strong style="color: #2c5aa0;">📞 +91-XXXXXXXXXX</strong>
-              </p>
-              <p style="color: #999; font-size: 14px; margin: 20px 0 0 0;">
-                Thank you for choosing TripEasy. We look forward to making your journey memorable!
-              </p>
-            </div>
+      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f9f9; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 20px; margin-bottom: 20px;">
+          <!-- Header -->
+          <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+            <h1 style="color: #e53935; margin: 0 0 5px 0; font-size: 28px; font-weight: 700;">TripEasy</h1>
+            <p style="color: #7f8c8d; margin: 0; font-size: 16px; font-weight: 500;">Your Travel Partner</p>
+          </div>
+          
+          <h2 style="color: #2c3e50; font-size: 22px; margin-top: 0; font-weight: 600; text-align: center;">Booking Request Received</h2>
+          
+          <div style="background-color: #fdf2f2; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #2c3e50;">Dear <strong>${bookingDetails.fullName}</strong>,</p>
+          </div>
+          
+          <p style="font-size: 15px; color: #555; line-height: 1.6;">
+            Thank you for choosing TripEasy! We have successfully received your booking request and our team will contact you soon to confirm your travel arrangements.
+          </p>
+          
+          <!-- Booking Details Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✈️ Booking Details
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Request ID:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">#${requestId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Package:</td>
+                <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${packageDetails.name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Destination:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.location}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Duration:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.duration} Days</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${new Date(bookingDetails.travelDate).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Travelers:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelers}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Price:</td>
+                <td style="padding: 6px 0; color: #e53935; font-weight: bold; font-size: 16px;">₹${totalPrice?.toLocaleString("en-IN") || "To be confirmed"}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <!-- Travellers List Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              👥 Travelers List
+            </h3>
+            <div style="color: #2c3e50; font-size: 14px; white-space: pre-line; margin-top: 10px; line-height: 1.6;">${travellersList}</div>
+          </div>
+          
+          <!-- Special Requests Card (if present) -->
+          ${
+            bookingDetails.specialRequests
+              ? `
+          <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✍️ Special Requests
+            </h3>
+            <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
+          </div>
+          `
+              : ""
+          }
+          
+          <!-- What's Next Card -->
+          <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px; font-weight: 600;">What's Next?</h3>
+            <ul style="padding-left: 20px; margin-bottom: 0; font-size: 14px; color: #555; line-height: 1.6;">
+              <li style="margin-bottom: 8px;">Our travel expert will contact you within 24 hours</li>
+              <li style="margin-bottom: 8px;">We'll discuss and finalize your itinerary details</li>
+              <li style="margin-bottom: 8px;">Payment and booking confirmation will follow</li>
+              <li style="margin-bottom: 0;">You'll receive your complete travel documents</li>
+            </ul>
+          </div>
+          
+          <!-- Footer with updated details -->
+          <p style="font-size: 15px; color: #555; text-align: center;">
+            If you have any questions, please don't hesitate to contact us at:<br>
+            <strong style="color: #e53935;">📧 booking.tripeasy@gmail.com</strong> or call us at <strong style="color: #e53935;">📞 +91 7880789486</strong>.
+          </p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
+            <p style="margin-bottom: 5px;">We look forward to creating an unforgettable travel experience for you!</p>
+            <p style="margin-top: 5px; margin-bottom: 25px;">Best regards,<br><strong style="color: #2c3e50;">TripEasy Team</strong></p>
+            <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -2651,26 +2704,100 @@ app.post("/api/booking-requests", async (req, res) => {
     // Send admin notification email
     try {
       const adminEmailHtml = `
-        <html>
-          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <h2>New Booking Request Received</h2>
-            <p><strong>Request ID:</strong> ${requestId}</p>
-            <p><strong>Customer Name:</strong> ${bookingDetails.fullName}</p>
-            <p><strong>Email:</strong> ${bookingDetails.email}</p>
-            <p><strong>Phone:</strong> ${bookingDetails.phone}</p>
-            <p><strong>Package:</strong> ${packageDetails.name}</p>
-            <p><strong>Location:</strong> ${packageDetails.location}</p>
-            <p><strong>Travel Date:</strong> ${new Date(bookingDetails.travelDate).toLocaleDateString("en-IN")}</p>
-            <p><strong>Number of Travelers:</strong> ${bookingDetails.travelers}</p>
-            <p><strong>Total Price:</strong> ₹${totalPrice?.toLocaleString("en-IN") || "To be confirmed"}</p>
-            ${bookingDetails.specialRequests ? `<p><strong>Special Requests:</strong> ${bookingDetails.specialRequests}</p>` : ""}
-          </body>
-        </html>
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+            <h1 style="color: #e53935; margin-bottom: 5px; font-size: 26px; font-weight: 700;">New Booking Request</h1>
+            <p style="color: #7f8c8d; font-size: 16px; margin-top: 5px;">Request ID: #${requestId}</p>
+          </div>
+          
+          <div style="background-color: #fdf2f2; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #2c3e50;">A new booking request has been submitted for <strong>${packageDetails.name}</strong>.</p>
+          </div>
+          
+          <!-- Customer Info Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              👤 Customer Details
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Name:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.fullName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Email:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Phone:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.phone}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <!-- Booking Details Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✈️ Booking Details
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 40%;">Package Name:</td>
+                <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${packageDetails.name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Location:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${packageDetails.location}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${new Date(bookingDetails.travelDate).toLocaleDateString("en-IN")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">No. of Travelers:</td>
+                <td style="padding: 6px 0; color: #2c3e50;">${bookingDetails.travelers}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Price:</td>
+                <td style="padding: 6px 0; color: #e53935; font-weight: bold; font-size: 16px;">₹${totalPrice?.toLocaleString("en-IN") || "To be confirmed"}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Travelers List Card -->
+          <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              👥 Travelers List
+            </h3>
+            <div style="color: #2c3e50; font-size: 14px; white-space: pre-line; margin-top: 10px; line-height: 1.6;">${travellersList}</div>
+          </div>
+          
+          <!-- Special Requests Card (if present) -->
+          ${
+            bookingDetails.specialRequests
+              ? `
+          <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+              ✍️ Special Requests
+            </h3>
+            <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
+          </div>
+          `
+              : ""
+          }
+          
+          <p style="font-size: 14px; color: #7f8c8d;">Please log in to the admin dashboard to review and manage this booking request.</p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
+            <p style="margin-bottom: 5px;">This is an automated notification from the TripEasy system.</p>
+            <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
+          </div>
+        </div>
       `
 
       const adminMailOptions = {
         from: `"TripEasy Travel" <${process.env.EMAIL_USER}>`,
-        to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER, // Fallback to sender if ADMIN_EMAIL is not set
+        to: "booking.tripeasy@gmail.com",
         subject: `New Booking Request - ${packageDetails.name}`,
         html: adminEmailHtml,
       }
