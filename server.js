@@ -43,36 +43,31 @@ const allowedOrigins = [
   "https://tripeasy-client-smoky.vercel.app"
 ];
 
-// Dynamically inject the configured frontend URL from environment configuration
-if (process.env.FRONTEND_URL) {
-  const normalizedEnvOrigin = process.env.FRONTEND_URL.replace(/\/$/, "");
-  if (!allowedOrigins.includes(normalizedEnvOrigin)) {
-    allowedOrigins.push(normalizedEnvOrigin);
-  }
-}
-
-// Standard robust CORS configuration that automatically manages Vary: Origin and preflight OPTIONS
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
-    if (!origin) return callback(null, true);
-
+// Custom robust CORS middleware compatible with Express 5
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
     const normalizedOrigin = origin.replace(/\/$/, "");
-    const isAllowed = allowedOrigins.includes(normalizedOrigin) ||
-                      normalizedOrigin.endsWith(".vercel.app") ||
+    const isAllowed = allowedOrigins.includes(normalizedOrigin) || 
+                      normalizedOrigin.endsWith(".vercel.app") || 
                       normalizedOrigin.startsWith("https://tripeasy-client");
-
+                      
     if (isAllowed) {
-      callback(null, true);
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "Content-Type, Authorization, x-api-version, x-request-id");
+      
+      // Intercept preflight OPTIONS request
+      if (req.method === "OPTIONS") {
+        return res.status(204).end();
+      }
     } else {
       console.log(`[CORS] Rejected origin: ${origin}`);
-      callback(null, false);
     }
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-api-version", "x-request-id"]
-}));
+  }
+  next();
+});
 app.use(compression({ level: 6 }))
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
@@ -81,22 +76,22 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 app.use((req, res, next) => {
   // Prevent clickjacking
   res.setHeader("X-Frame-Options", "SAMEORIGIN")
-
+  
   // Prevent MIME type sniffing
   res.setHeader("X-Content-Type-Options", "nosniff")
-
+  
   // Enable XSS protection
   res.setHeader("X-XSS-Protection", "1; mode=block")
-
+  
   // Content Security Policy
   res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self';")
-
+  
   // Referrer Policy
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
-
+  
   // Permissions Policy
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-
+  
   // Cache headers for optimization
   if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
     // Cache static assets for 30 days
@@ -107,9 +102,8 @@ app.use((req, res, next) => {
   } else {
     // Default cache for API responses - 5 minutes
     res.setHeader("Cache-Control", "public, max-age=300")
-    res.setHeader("Vary", "Origin")
   }
-
+  
   next()
 })
 
@@ -139,7 +133,7 @@ if (process.env.VERCEL !== "1") {
     fs.mkdirSync(uploadsDir, { recursive: true })
   }
 
-
+  
   // Serve static files from uploads directory
   app.use("/uploads", express.static(uploadsDir))
 }
@@ -265,10 +259,10 @@ app.post(
         if (files && files.length > 0) {
           const file = files[0] // Take the first file for each field
           const isImage = file.mimetype.startsWith("image/")
-
+          
           // For Vercel, return file info without URL
-          const fileUrl = process.env.VERCEL === "1"
-            ? `/tmp/${file.filename}`
+          const fileUrl = process.env.VERCEL === "1" 
+            ? `/tmp/${file.filename}` 
             : `/uploads/${file.filename}`
 
           uploadedFiles[fieldName] = fileUrl
@@ -348,7 +342,7 @@ app.post("/api/upload-multiple", upload.array("files", 10), (req, res) => {
       const fileUrl = process.env.VERCEL === "1"
         ? `/tmp/${file.filename}`
         : `/uploads/${file.filename}`
-
+      
       return {
         filename: file.filename,
         originalName: file.originalname,
@@ -943,18 +937,18 @@ async function generatePDF(html, outputPath) {
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
-
+    
     const page = await browser.newPage();
-
+    
     // Set page content
     await page.setContent(html, { waitUntil: "networkidle0" });
-
+    
     // Ensure parent directory exists
     const dir = path.dirname(outputPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-
+    
     // Generate PDF
     await page.pdf({
       path: outputPath,
@@ -967,7 +961,7 @@ async function generatePDF(html, outputPath) {
         left: "20px"
       }
     });
-
+    
     console.log("PDF generated successfully at:", outputPath);
   } catch (error) {
     console.error("Error inside generatePDF helper:", error);
@@ -1015,7 +1009,7 @@ const sendReceiptEmail = async (to, subject, orderData, bookingDetails, packageD
 
         // Generate PDF using puppeteer
         await generatePDF(htmlContent, pdfFilePath)
-
+        
         // Verify the file exists before trying to attach it
         if (fs.existsSync(pdfFilePath)) {
           attachments.push({
@@ -1248,8 +1242,9 @@ const sendBookingConfirmationAdminEmail = async (orderData, bookingDetails, pack
         </div>
         
         <!-- Special Requests Card (if present) -->
-        ${bookingDetails.specialRequests
-        ? `
+        ${
+          bookingDetails.specialRequests
+            ? `
         <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
           <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
             ✍️ Special Requests
@@ -1257,8 +1252,8 @@ const sendBookingConfirmationAdminEmail = async (orderData, bookingDetails, pack
           <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
         </div>
         `
-        : ""
-      }
+            : ""
+        }
         
         <p style="font-size: 14px; color: #7f8c8d;">This booking and payment has been successfully recorded in the database. Please process the package further.</p>
         
@@ -1863,8 +1858,9 @@ const sendCustomPackageNotification = async (to, subject, requestData) => {
           </div>
           
           <div style="background-color: #f9f9f9; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; font-size: 16px;">A new custom package request has been submitted by <strong>${requestData.fullName
-        }</strong>.</p>
+            <p style="margin: 0; font-size: 16px;">A new custom package request has been submitted by <strong>${
+              requestData.fullName
+            }</strong>.</p>
           </div>
           
           <div style="background-color: #f5f5f5; border-radius: 4px; padding: 15px; margin: 20px 0;">
@@ -1933,9 +1929,11 @@ const sendCustomPackageConfirmation = async (to, subject, requestData) => {
             <p style="margin: 0; font-size: 16px; color: #2c3e50;">Dear <strong>${requestData.fullName}</strong>,</p>
           </div>
           
-          <p style="font-size: 15px; color: #555;">Thank you for submitting your custom travel package request to TripEasy. We have received your request for a trip to <strong>${requestData.destination
-        }</strong> starting on <strong>${requestData.startDate
-        }</strong> for <strong>${requestData.duration}</strong>.</p>
+          <p style="font-size: 15px; color: #555;">Thank you for submitting your custom travel package request to TripEasy. We have received your request for a trip to <strong>${
+            requestData.destination
+          }</strong> starting on <strong>${
+            requestData.startDate
+          }</strong> for <strong>${requestData.duration}</strong>.</p>
           
           <p style="font-size: 15px; color: #555;">Our travel experts are reviewing your request and will contact you within 24-48 hours with a personalized travel plan tailored to your preferences.</p>
           
@@ -2036,11 +2034,11 @@ const sendCustomPackageConfirmation = async (to, subject, requestData) => {
 const getPrimaryPlace = (location) => {
   if (!location) return "";
   const normalized = location.toLowerCase();
-
+  
   const knownPlaces = [
-    "goa", "manali", "shimla", "daman", "mount abu", "somnath", "vietnam", "bali",
-    "pushkar", "thailand", "udaipur", "vrindavan", "darjeeling", "gangtok", "singapore",
-    "uttarakhand", "dubai", "hong kong", "oman", "varanasi", "ujjain", "matheran",
+    "goa", "manali", "shimla", "daman", "mount abu", "somnath", "vietnam", "bali", 
+    "pushkar", "thailand", "udaipur", "vrindavan", "darjeeling", "gangtok", "singapore", 
+    "uttarakhand", "dubai", "hong kong", "oman", "varanasi", "ujjain", "matheran", 
     "saputara", "dwarka", "silvassa", "dudhani", "char dham"
   ];
 
@@ -2063,11 +2061,11 @@ app.get("/api/packages", async (req, res) => {
     if (featured) {
       // First fetch featured packages
       const allFeatured = await Package.find({ featured: true })
-
+      
       // Select packages from unique places
       const selected = []
       const seenPlaces = new Set()
-
+      
       for (const pkg of allFeatured) {
         const place = getPrimaryPlace(pkg.location || pkg.name)
         if (!seenPlaces.has(place)) {
@@ -2078,7 +2076,7 @@ app.get("/api/packages", async (req, res) => {
           break
         }
       }
-
+      
       // If we couldn't satisfy the limit with unique places, backfill with remaining featured packages
       if (limit && !isNaN(limit) && selected.length < limit) {
         for (const pkg of allFeatured) {
@@ -2090,9 +2088,9 @@ app.get("/api/packages", async (req, res) => {
           }
         }
       }
-
+      
       packages = selected
-
+      
       // If we have a limit and need more packages to satisfy the limit, backfill with non-featured
       if (limit && !isNaN(limit) && packages.length < limit) {
         const additionalNeeded = limit - packages.length
@@ -2108,7 +2106,7 @@ app.get("/api/packages", async (req, res) => {
       }
       packages = await packagesQuery
     }
-
+    
     // Still fetch all categories and destinations so client-side filters work
     const allPackages = await Package.find({}, 'category')
     const categories = [...new Set(allPackages.map((pkg) => pkg.category))]
@@ -2179,7 +2177,7 @@ app.get("/api/packages/:identifier", async (req, res) => {
 app.get("/api/destinations", async (req, res) => {
   try {
     const destinations = await Destination.find({})
-
+    
     // Fetch all packages with only name and location fields (highly lightweight)
     const packages = await Package.find({}, "location name")
 
@@ -2465,10 +2463,10 @@ app.post("/api/submit-booking-request", async (req, res) => {
               <tr>
                 <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
                 <td style="padding: 6px 0; color: #2c3e50;">${new Date(bookingDetails.travelDate).toLocaleDateString("en-IN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })}</td>
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}</td>
               </tr>
               <tr>
                 <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Travelers:</td>
@@ -2490,8 +2488,9 @@ app.post("/api/submit-booking-request", async (req, res) => {
           </div>
           
           <!-- Special Requests Card (if present) -->
-          ${bookingDetails.specialRequests
-        ? `
+          ${
+            bookingDetails.specialRequests
+              ? `
           <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
               ✍️ Special Requests
@@ -2499,8 +2498,8 @@ app.post("/api/submit-booking-request", async (req, res) => {
             <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
           </div>
           `
-        : ""
-      }
+              : ""
+          }
           
           <!-- What's Next Card -->
           <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
@@ -2693,10 +2692,10 @@ app.post("/api/booking-requests", async (req, res) => {
               <tr>
                 <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Travel Date:</td>
                 <td style="padding: 6px 0; color: #2c3e50;">${new Date(bookingDetails.travelDate).toLocaleDateString("en-IN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })}</td>
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}</td>
               </tr>
               <tr>
                 <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Total Travelers:</td>
@@ -2718,8 +2717,9 @@ app.post("/api/booking-requests", async (req, res) => {
           </div>
           
           <!-- Special Requests Card (if present) -->
-          ${bookingDetails.specialRequests
-        ? `
+          ${
+            bookingDetails.specialRequests
+              ? `
           <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
               ✍️ Special Requests
@@ -2727,8 +2727,8 @@ app.post("/api/booking-requests", async (req, res) => {
             <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
           </div>
           `
-        : ""
-      }
+              : ""
+          }
           
           <!-- What's Next Card -->
           <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
@@ -2845,8 +2845,9 @@ app.post("/api/booking-requests", async (req, res) => {
           </div>
           
           <!-- Special Requests Card (if present) -->
-          ${bookingDetails.specialRequests
-          ? `
+          ${
+            bookingDetails.specialRequests
+              ? `
           <div style="background-color: #fffde7; border: 1px solid #fff59d; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h3 style="color: #fbc02d; margin-top: 0; border-bottom: 2px solid #fff59d; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
               ✍️ Special Requests
@@ -2854,8 +2855,8 @@ app.post("/api/booking-requests", async (req, res) => {
             <p style="color: #5d4037; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line;">${bookingDetails.specialRequests}</p>
           </div>
           `
-          : ""
-        }
+              : ""
+          }
           
           <p style="font-size: 14px; color: #7f8c8d;">Please review and manage this booking request using the details provided above.</p>
           
