@@ -227,6 +227,48 @@ transporter.verify((error, success) => {
   }
 })
 
+// Contact email transporter configuration
+const contactTransporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE || "gmail",
+  auth: {
+    user: process.env.CONTACT_EMAIL_USER || "contact.us.tripeasy@gmail.com",
+    pass: process.env.CONTACT_EMAIL_PASSWORD || "",
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
+  secure: true,
+  pool: true,
+  maxConnections: 1,
+  maxMessages: 1,
+})
+
+// Test contact email connection on startup (only if password is provided)
+if (process.env.CONTACT_EMAIL_PASSWORD) {
+  contactTransporter.verify((error, success) => {
+    if (error) {
+      console.error("Contact email server connection error:", error)
+    } else {
+      console.log("Contact email server connection successful")
+    }
+  })
+}
+
+// Helper to choose the right transporter for contact form emails
+const getContactTransporter = () => {
+  if (process.env.CONTACT_EMAIL_PASSWORD && process.env.CONTACT_EMAIL_USER) {
+    return {
+      transporter: contactTransporter,
+      from: `"TripEasy Contact" <${process.env.CONTACT_EMAIL_USER}>`
+    }
+  }
+  console.warn("CONTACT_EMAIL_PASSWORD not set in environment variables. Falling back to default booking email transporter.")
+  return {
+    transporter: transporter,
+    from: `"TripEasy Contact" <${process.env.EMAIL_USER}>`
+  }
+}
+
 // Track emails sent to prevent duplicates
 const emailsSent = new Set()
 
@@ -2890,6 +2932,151 @@ app.post("/api/booking-requests", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to submit booking request",
+      error: error.message,
+    })
+  }
+})
+
+// Contact form submission endpoint
+app.post("/api/contact", async (req, res) => {
+  try {
+    const { name, email, phone, subject, message } = req.body
+
+    // Validate required fields
+    if (!name || !email || !phone || !subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      })
+    }
+
+    const { transporter: activeTransporter, from: fromEmail } = getContactTransporter()
+
+    // 1. Send admin notification email
+    const adminEmailHtml = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+          <h1 style="color: #e53935; margin-bottom: 5px; font-size: 26px; font-weight: 700;">New Contact Inquiry</h1>
+          <p style="color: #7f8c8d; font-size: 16px; margin-top: 5px;">A user has submitted a contact form on TripEasy</p>
+        </div>
+        
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            👤 Contact Details
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold; width: 30%;">Name:</td>
+              <td style="padding: 6px 0; color: #2c3e50; font-weight: bold;">${name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Email:</td>
+              <td style="padding: 6px 0; color: #2c3e50;"><a href="mailto:${email}" style="color: #e53935; text-decoration: none;">${email}</a></td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Phone:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${phone}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #7f8c8d; font-weight: bold;">Subject:</td>
+              <td style="padding: 6px 0; color: #2c3e50;">${subject}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 18px; font-weight: 600;">
+            💬 Message
+          </h3>
+          <p style="color: #2c3e50; font-size: 14px; margin: 10px 0 0 0; white-space: pre-line; line-height: 1.6;">${message}</p>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
+          <p style="margin-bottom: 5px;">This is an automated notification from the TripEasy system.</p>
+          <p style="font-size: 12px; margin-top: 20px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
+        </div>
+      </div>
+    `
+
+    const adminMailOptions = {
+      from: fromEmail,
+      to: "contact.us.tripeasy@gmail.com",
+      subject: `New Contact Inquiry: ${subject}`,
+      html: adminEmailHtml,
+    }
+
+    // 2. Send customer confirmation email
+    const customerEmailHtml = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+          <h1 style="color: #e53935; margin-bottom: 5px; font-size: 26px; font-weight: 700;">Thank You for Reaching Out!</h1>
+          <p style="color: #7f8c8d; font-size: 16px; margin-top: 5px;">We have received your message</p>
+        </div>
+        
+        <div style="background-color: #fdf2f2; border-left: 4px solid #e53935; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 16px; color: #2c3e50;">Dear <strong>${name}</strong>,</p>
+        </div>
+        
+        <p style="font-size: 15px; color: #555; line-height: 1.6;">
+          Thanks for contacting us. We will read your message and will contact you soon.
+        </p>
+
+        <div style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 25px 0;">
+          <h3 style="color: #e53935; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 8px; font-size: 16px; font-weight: 600;">
+            Inquiry Summary
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+            <tr>
+              <td style="padding: 5px 0; color: #7f8c8d; font-weight: bold; width: 30%;">Subject:</td>
+              <td style="padding: 5px 0; color: #2c3e50;">${subject}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; color: #7f8c8d; font-weight: bold; vertical-align: top;">Message:</td>
+              <td style="padding: 5px 0; color: #2c3e50; white-space: pre-line;">${message}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <p style="font-size: 15px; color: #555; line-height: 1.6;">
+          If you need urgent assistance, feel free to call us at <a href="tel:+917880789486" style="color: #e53935; text-decoration: none; font-weight: bold;">+91 78807 89486</a>.
+        </p>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #7f8c8d; font-size: 14px;">
+          <p style="margin-bottom: 5px;">Best Regards,</p>
+          <p style="font-weight: bold; color: #2c3e50; margin-top: 5px; margin-bottom: 15px;">Team TripEasy</p>
+          <p style="font-size: 12px; color: #95a5a6;">© ${new Date().getFullYear()} TripEasy. All rights reserved.</p>
+        </div>
+      </div>
+    `
+
+    const customerMailOptions = {
+      from: fromEmail,
+      to: email,
+      subject: `Thanks for contacting TripEasy: ${subject}`,
+      html: customerEmailHtml,
+    }
+
+    // Send both emails
+    await activeTransporter.sendMail(adminMailOptions)
+    console.log(`[Contact] Inquiry notification sent to contact.us.tripeasy@gmail.com`)
+
+    try {
+      await activeTransporter.sendMail(customerMailOptions)
+      console.log(`[Contact] Confirmation email sent to customer: ${email}`)
+    } catch (custError) {
+      console.error(`[Contact] Error sending confirmation email to customer:`, custError)
+      // Do not fail the whole request if the customer's email confirmation fails (e.g. invalid email format)
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Message sent successfully",
+    })
+  } catch (error) {
+    console.error("[Contact] Error handling contact form:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to send message",
       error: error.message,
     })
   }
