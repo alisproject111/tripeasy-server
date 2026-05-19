@@ -29,6 +29,9 @@ const sanitizeXSSInPlace = (obj) => {
   if (typeof obj !== "object" || obj === null) return
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      if (key === "pdfBase64") {
+        continue
+      }
       const val = obj[key]
       if (typeof val === "string") {
         obj[key] = val

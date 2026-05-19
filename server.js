@@ -68,7 +68,7 @@ app.use((req, res, next) => {
       res.setHeader(
         "Access-Control-Allow-Headers",
         req.headers["access-control-request-headers"] ||
-          "Content-Type, Authorization, x-api-version, x-request-id"
+        "Content-Type, Authorization, x-api-version, x-request-id"
       )
 
       // Intercept preflight OPTIONS request
@@ -83,8 +83,8 @@ app.use((req, res, next) => {
 })
 
 app.use(compression({ level: 6 }))
-app.use(express.json({ limit: "1mb" }))
-app.use(express.urlencoded({ extended: true, limit: "1mb" }))
+app.use(express.json({ limit: "10mb" }))
+app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 
 // Apply security headers via Helmet
 app.use(
