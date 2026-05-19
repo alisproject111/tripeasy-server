@@ -166,8 +166,9 @@ router.get("/packages/:identifier", async (req, res) => {
     // If not found, try to find by slug
     if (!package_) {
       const slugIdentifier = identifier.replace(/-/g, " ")
+      const escapedSlug = slugIdentifier.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
       package_ = await Package.findOne({
-        name: { $regex: new RegExp(`^${slugIdentifier}$`, "i") },
+        name: { $regex: new RegExp(`^${escapedSlug}$`, "i") },
       })
     }
 

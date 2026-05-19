@@ -3,11 +3,14 @@ import cors from "cors"
 import compression from "compression"
 import dns from "dns"
 import dotenv from "dotenv"
+import helmet from "helmet"
+// Import custom middleware & configurations
 
 // Import custom middleware & configurations
 import { connectDB } from "./config/db.js"
 import { requestLogger } from "./middleware/logger.js"
 import { uploadsDir } from "./config/multer.js"
+import { globalLimiter, sensitiveLimiter, xssSanitizer, nosqlSanitizer } from "./middleware/security.js"
 
 // Import express routers
 import uploadRouter from "./routes/upload.js"
@@ -80,21 +83,47 @@ app.use((req, res, next) => {
 })
 
 app.use(compression({ level: 6 }))
-app.use(express.json({ limit: "50mb" }))
-app.use(express.urlencoded({ extended: true, limit: "50mb" }))
+app.use(express.json({ limit: "1mb" }))
+app.use(express.urlencoded({ extended: true, limit: "1mb" }))
 
-// Security headers middleware
+// Apply security headers via Helmet
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https:"],
+        frameAncestors: ["'self'"],
+      },
+    },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    xFrameOptions: { action: "sameorigin" },
+  })
+)
+
+// Apply NoSQL query injection protection
+app.use(nosqlSanitizer)
+
+// Apply XSS inputs sanitizer
+app.use(xssSanitizer)
+
+// Apply global rate limiter to all API routes
+app.use("/api", globalLimiter)
+
+// Apply sensitive rate limiters to transaction-heavy / email-sending endpoints
+app.use("/api/contact", sensitiveLimiter)
+app.use("/api/submit-booking-request", sensitiveLimiter)
+app.use("/api/booking-requests", sensitiveLimiter)
+app.use("/api/submit-custom-package", sensitiveLimiter)
+app.use("/api/pay-now", sensitiveLimiter)
+app.use("/api/payment-status-callback", sensitiveLimiter)
+
+// Custom Cache control headers middleware
 app.use((req, res, next) => {
-  res.setHeader("X-Frame-Options", "SAMEORIGIN")
-  res.setHeader("X-Content-Type-Options", "nosniff")
-  res.setHeader("X-XSS-Protection", "1; mode=block")
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self';"
-  )
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
-  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-
   if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
     res.setHeader("Cache-Control", "public, max-age=2592000, immutable")
   } else if (req.path.match(/\.(html)$/)) {
@@ -120,6 +149,20 @@ app.get("/", (req, res) => {
     message: "TripEasy Backend API is running",
     status: "healthy",
     timestamp: new Date().toISOString(),
+  })
+})
+
+// Centralized error handler to prevent info disclosure
+app.use((err, req, res, next) => {
+  console.error("[Fatal Error]:", err)
+
+  const statusCode = err.status || err.statusCode || 500
+  const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1"
+
+  res.status(statusCode).json({
+    success: false,
+    message: isProduction ? "An internal server error occurred." : err.message,
+    ...(isProduction ? {} : { stack: err.stack }),
   })
 })
 

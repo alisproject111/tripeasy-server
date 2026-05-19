@@ -168,8 +168,9 @@ router.get("/destinations/:destinationName/packages", async (req, res) => {
   try {
     const { destinationName } = req.params
 
+    const escapedDestinationName = destinationName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
     const packages = await Package.find({
-      location: { $regex: new RegExp(`^${destinationName}$`, "i") },
+      location: { $regex: new RegExp(`^${escapedDestinationName}$`, "i") },
     })
 
     res.json({
