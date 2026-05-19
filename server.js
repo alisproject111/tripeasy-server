@@ -43,31 +43,36 @@ const allowedOrigins = [
   "https://tripeasy-client-smoky.vercel.app"
 ];
 
-// Custom robust CORS middleware compatible with Express 5
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
+// Dynamically inject the configured frontend URL from environment configuration
+if (process.env.FRONTEND_URL) {
+  const normalizedEnvOrigin = process.env.FRONTEND_URL.replace(/\/$/, "");
+  if (!allowedOrigins.includes(normalizedEnvOrigin)) {
+    allowedOrigins.push(normalizedEnvOrigin);
+  }
+}
+
+// Standard robust CORS configuration that automatically manages Vary: Origin and preflight OPTIONS
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) return callback(null, true);
+
     const normalizedOrigin = origin.replace(/\/$/, "");
     const isAllowed = allowedOrigins.includes(normalizedOrigin) ||
-      normalizedOrigin.endsWith(".vercel.app") ||
-      normalizedOrigin.startsWith("https://tripeasy-client");
+                      normalizedOrigin.endsWith(".vercel.app") ||
+                      normalizedOrigin.startsWith("https://tripeasy-client");
 
     if (isAllowed) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "Content-Type, Authorization, x-api-version, x-request-id");
-
-      // Intercept preflight OPTIONS request
-      if (req.method === "OPTIONS") {
-        return res.status(204).end();
-      }
+      callback(null, true);
     } else {
       console.log(`[CORS] Rejected origin: ${origin}`);
+      callback(null, false);
     }
-  }
-  next();
-});
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-api-version", "x-request-id"]
+}));
 app.use(compression({ level: 6 }))
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
@@ -102,6 +107,7 @@ app.use((req, res, next) => {
   } else {
     // Default cache for API responses - 5 minutes
     res.setHeader("Cache-Control", "public, max-age=300")
+    res.setHeader("Vary", "Origin")
   }
 
   next()
