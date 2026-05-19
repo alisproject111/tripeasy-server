@@ -1372,9 +1372,7 @@ async function saveBookingToDatabase(orderData, bookingDetails, packageDetails) 
 }
 
 // Cashfree API configuration
-const CASHFREE_BASE_URL = process.env.CASHFREE_ENV === "production"
-  ? "https://api.cashfree.com/pg"
-  : "https://sandbox.cashfree.com/pg"
+const CASHFREE_BASE_URL = "https://sandbox.cashfree.com/pg"
 
 // Create order endpoint
 app.post("/api/create-order", async (req, res) => {
