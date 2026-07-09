@@ -124,7 +124,7 @@ app.use("/api/payment-status-callback", sensitiveLimiter)
 
 // Custom Cache control headers middleware
 app.use((req, res, next) => {
-  if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+  if (req.path.match(/\.(css|js|png|jpg|jpeg|webp|gif|svg|woff|woff2|ttf|eot)$/)) {
     res.setHeader("Cache-Control", "public, max-age=2592000, immutable")
   } else if (req.path.match(/\.(html)$/)) {
     res.setHeader("Cache-Control", "public, max-age=0, must-revalidate")
